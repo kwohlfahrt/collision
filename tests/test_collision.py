@@ -240,7 +240,7 @@ def test_traverse(cl_kernels):
     flags_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, n_nodes * np.dtype('float32').itemsize
     )
-    n_collisions = 2
+    n_collisions = 2 + 5 # Reports self-collisions
     collisions_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, n_collisions * 2 * np.dtype('uint32').itemsize
     )
@@ -299,4 +299,13 @@ def test_traverse(cl_kernels):
         0, 1, np.dtype('uint64'),
         wait_for=[find_collisions], is_blocking=True
     )
-    assert n_collisions_map[0] == 5 + 2
+
+    assert n_collisions_map[0] == n_collisions
+
+    (collisions_map, _) = cl.enqueue_map_buffer(
+        cq, collisions_buf, cl.map_flags.READ,
+        0, (n_collisions, 2), np.dtype('uint32'),
+        wait_for=[find_collisions], is_blocking=True
+    )
+    expected = set(zip(range(5), (range(5)))) | {(3, 4), (4, 3)}
+    assert set(map(tuple, collisions_map)) == expected

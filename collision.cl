@@ -209,7 +209,7 @@ kernel void traverse(global unsigned int * const collisions,
             unsigned long collision_idx = atom_inc(next);
             if (collision_idx < n_collisions) {
                 collisions[collision_idx*2+0] = get_global_id(0);
-                collisions[collision_idx*2+1] = nodes[child_a].leaf.id;
+                collisions[collision_idx*2+1] = nodes[child_b].leaf.id;
             }
         }
         bool traverse_a = (overlap_a && !isLeaf(child_a, n));
