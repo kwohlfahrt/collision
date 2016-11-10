@@ -2,6 +2,7 @@ from numpy import dtype, zeros
 from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
+from misc import Program
 
 def ceildiv(a, b):
     return (a + b - 1) // b
@@ -9,21 +10,8 @@ def ceildiv(a, b):
 def roundUp(x, base=1):
   return (x // base + bool(x % base)) * base
 
-class Program:
-    def __init__(self, ctx):
-        src = Path(__file__).parent / "radix.cl"
-        with src.open("r") as f:
-            self.program = cl.Program(ctx, f.read()).build()
-
-        self.kernels = {name: getattr(self.program, name) for name in self.kernel_args}
-        for name, kernel in self.kernels.items():
-            kernel.set_scalar_arg_dtypes(self.kernel_args[name])
-
-    @property
-    def context(self):
-        return self.program.get_info(cl.program_info.CONTEXT)
-
 class PrefixScanProgram(Program):
+    src = Path(__file__).parent / "radix.cl"
     kernel_args = {'local_scan': [None, None],
                    'block_scan': [None, None]}
 
@@ -94,6 +82,7 @@ class PrefixScanner:
         )
 
 class RadixProgram(Program):
+    src = Path(__file__).parent / "radix.cl"
     kernel_args = {'histogram': [None, None, dtype('int32'), dtype('int8'), dtype('int8')],
                    'scatter': [None, None, dtype('int32'), None, dtype('int8'), dtype('int8')]}
 
