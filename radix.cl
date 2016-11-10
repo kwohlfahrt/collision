@@ -20,8 +20,9 @@ kernel void histogram(global unsigned int * histograms,
     }
 }
 
-kernel void local_scan(global unsigned int * data,
-                       global unsigned int * block_sums) {
+// Cannot pass same buffer to two pointers (at least on nVidia)
+kernel void local_scan(global unsigned int * const data,
+                       global unsigned int * const block_sums) {
     // # of elements processed by workgroup
     const size_t group_size = get_local_size(0) * 2;
     const size_t group_start = group_size * get_group_id(0);
@@ -56,9 +57,9 @@ kernel void local_scan(global unsigned int * data,
     }
 }
 
-kernel void block_scan(global unsigned int * data,
-                       const global unsigned int * block_sums) {
-    data[get_global_id(0) * 2] += block_sums[get_group_id(0)];
+kernel void block_scan(global unsigned int * const data,
+                       const global unsigned int * const block_sums) {
+    data[get_global_id(0) * 2 + 0] += block_sums[get_group_id(0)];
     data[get_global_id(0) * 2 + 1] += block_sums[get_group_id(0)];
 }
 
