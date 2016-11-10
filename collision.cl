@@ -94,6 +94,7 @@ unsigned int findSplit(const global unsigned int * const codes, const uint2 rang
 
 struct Node {
     unsigned int parent;
+    unsigned int right_edge;
     union {
         struct {
             unsigned int id;
@@ -108,6 +109,7 @@ kernel void fillInternal(global struct Node * const nodes) {
     const unsigned int n = get_global_size(0);
     const size_t leaf_start = (n - 1);
     nodes[leaf_start + get_global_id(0)].leaf.id = get_global_id(0);
+    nodes[leaf_start + get_global_id(0)].right_edge = get_global_id(0);
 }
 
 kernel void generateBVH(const global unsigned int * const codes,
@@ -123,6 +125,7 @@ kernel void generateBVH(const global unsigned int * const codes,
     split += 1;
     const unsigned int child_b = (split == range.s1) ? leaf_start + split : split;
 
+    nodes[idx].right_edge = range.s1;
     nodes[idx].internal.children[0] = child_a;
     nodes[idx].internal.children[1] = child_b;
     nodes[child_a].parent = idx;
@@ -185,7 +188,8 @@ kernel void traverse(global unsigned int * const collisions,
                      const global struct Bound * const bounds) {
     unsigned int n = get_global_size(0);
     size_t leaf_start = n - 1;
-    const struct Bound query = bounds[leaf_start + get_global_id(0)];
+    const unsigned int query_idx = get_global_id(0);
+    const struct Bound query = bounds[leaf_start + query_idx];
 
     unsigned int stack[64];
     unsigned char stack_ptr = 0;
@@ -194,26 +198,31 @@ kernel void traverse(global unsigned int * const collisions,
     // Root node
     unsigned int idx = 0;
     do {
-        unsigned int child_a = nodes[idx].internal.children[0];
-        unsigned int child_b = nodes[idx].internal.children[1];
+        const unsigned int child_a = nodes[idx].internal.children[0];
+        const unsigned int child_b = nodes[idx].internal.children[1];
         bool overlap_a = checkOverlap(query, bounds[child_a]);
         bool overlap_b = checkOverlap(query, bounds[child_b]);
+
+        // Don't report self-collisions, and only in one direction
+        overlap_a &= !(nodes[child_a].right_edge <= query_idx);
+        overlap_b &= !(nodes[child_b].right_edge <= query_idx);
+
         if (overlap_a && isLeaf(child_a, n)) {
-            unsigned long collision_idx = atom_inc(next);
+            const unsigned long collision_idx = atom_inc(next);
             if (collision_idx < n_collisions) {
-                collisions[collision_idx*2+0] = get_global_id(0);
+                collisions[collision_idx*2+0] = query_idx;
                 collisions[collision_idx*2+1] = nodes[child_a].leaf.id;
             }
         }
         if (overlap_b && isLeaf(child_b, n)) {
-            unsigned long collision_idx = atom_inc(next);
+            const unsigned long collision_idx = atom_inc(next);
             if (collision_idx < n_collisions) {
-                collisions[collision_idx*2+0] = get_global_id(0);
+                collisions[collision_idx*2+0] = query_idx;
                 collisions[collision_idx*2+1] = nodes[child_b].leaf.id;
             }
         }
-        bool traverse_a = (overlap_a && !isLeaf(child_a, n));
-        bool traverse_b = (overlap_b && !isLeaf(child_b, n));
+        const bool traverse_a = (overlap_a && !isLeaf(child_a, n));
+        const bool traverse_b = (overlap_b && !isLeaf(child_b, n));
         if (!traverse_a && !traverse_b)
             idx = stack[--stack_ptr];
         else {

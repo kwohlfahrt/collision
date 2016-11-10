@@ -11,7 +11,7 @@ kernel_args = {'generateBVH': None,
                'generateBounds': None,
                'calculateCodes': None,
                'traverse': [None, None, np.dtype('uint64'), None, None],}
-Node = np.dtype([('parent', 'uint32'), ('data', 'uint32', 2)])
+Node = np.dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
 @pytest.fixture(scope='module')
 
@@ -51,7 +51,7 @@ def test_fill_internal(cl_kernels):
     )
     nodes_map.dtype = Node
 
-    np.testing.assert_equal(nodes_map['data'][:, 0], np.arange(n, dtype='uint32'))
+    np.testing.assert_equal(nodes_map['data'][:, 0], np.arange(n))
 
 
 def test_generate_bvh(cl_kernels):
@@ -86,20 +86,21 @@ def test_generate_bvh(cl_kernels):
     nodes_map.dtype = Node
 
     leaf = len(codes) - 1
-    expected = np.array([(-1, [3, 4]),
-                         (3, [leaf+0, leaf+1]),
-                         (3, [leaf+2, leaf+3]),
-                         (0, [1, 2]),
-                         (0, [leaf+4, 5]),
-                         (4, [6, leaf+7]),
-                         (5, [leaf+5, leaf+6])], dtype=Node)
+    expected = np.array([(-1, 7, [3, 4]),
+                         (3, 1, [leaf+0, leaf+1]),
+                         (3, 3, [leaf+2, leaf+3]),
+                         (0, 3, [1, 2]),
+                         (0, 7, [leaf+4, 5]),
+                         (4, 7, [6, leaf+7]),
+                         (5, 6, [leaf+5, leaf+6])], dtype=Node)
     np.testing.assert_equal(nodes_map[1:leaf], expected[1:])
-    np.testing.assert_equal(nodes_map['data'][0], expected['data'][0])
+    np.testing.assert_equal(nodes_map[['data', 'right_edge']][0],
+                            expected[['data', 'right_edge']][0])
 
-    expected_parents = np.array([1, 1, 2, 2, 4, 6, 6, 5], dtype='uint32')
+    expected_parents = np.array([1, 1, 2, 2, 4, 6, 6, 5])
     np.testing.assert_equal(nodes_map['parent'][leaf:], expected_parents)
-    expected_ids = np.arange(len(codes), dtype='uint32')
-    np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes), dtype='uint32'))
+    np.testing.assert_equal(nodes_map['right_edge'][leaf:], np.arange(len(codes)))
+    np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes)))
 
 
 def test_generate_odd_bvh(cl_kernels):
@@ -134,19 +135,19 @@ def test_generate_odd_bvh(cl_kernels):
     nodes_map.dtype = Node
 
     leaf = len(codes) - 1
-    expected = np.array([(-1, [3, 4]),
-                         (3, [leaf+0, leaf+1]),
-                         (3, [leaf+2, leaf+3]),
-                         (0, [1, 2]),
-                         (0, [leaf+4, 5]),
-                         (4, [leaf+5, leaf+6])], dtype=Node)
+    expected = np.array([(-1, 6, [3, 4]),
+                         (3, 1, [leaf+0, leaf+1]),
+                         (3, 3, [leaf+2, leaf+3]),
+                         (0, 3, [1, 2]),
+                         (0, 6, [leaf+4, 5]),
+                         (4, 6, [leaf+5, leaf+6])], dtype=Node)
     np.testing.assert_equal(nodes_map[1:leaf], expected[1:])
-    np.testing.assert_equal(nodes_map['data'][0], expected['data'][0])
+    np.testing.assert_equal(nodes_map[['right_edge', 'data']][0],
+                            expected[['right_edge', 'data']][0])
 
-    expected_parents = np.array([1, 1, 2, 2, 4, 5, 5], dtype='uint32')
+    expected_parents = np.array([1, 1, 2, 2, 4, 5, 5])
     np.testing.assert_equal(nodes_map['parent'][leaf:], expected_parents)
-    expected_ids = np.arange(len(codes), dtype='uint32')
-    np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes), dtype='uint32'))
+    np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes)))
 
 
 def test_compute_bounds(cl_kernels):
@@ -158,13 +159,13 @@ def test_compute_bounds(cl_kernels):
                        [-5.0, 0.0,-1.0]], dtype='float32')
     radii = np.ones(len(coords), dtype='float32')
     leaf = len(coords) - 1
-    nodes = np.array([(-1, (leaf+0, 1)),
-                      ( 0, (leaf+3, 2)),
-                      ( 1, (leaf+1, leaf+2)),
-                      ( 0, (0, -1)),
-                      ( 2, (1, -1)),
-                      ( 2, (2, -1)),
-                      ( 1, (3, -1))], dtype=Node)
+    nodes = np.array([(-1, 3, [leaf+0, 1]),
+                      ( 0, 3, [leaf+3, 2]),
+                      ( 1, 2, [leaf+1, leaf+2]),
+                      ( 0, 0, [0, -1]),
+                      ( 2, 1, [1, -1]),
+                      ( 2, 2, [2, -1]),
+                      ( 1, 3, [3, -1])], dtype=Node)
 
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
@@ -211,6 +212,7 @@ def test_traverse(cl_kernels):
     ctx, cq, kernels = cl_kernels
 
     coords = np.array([[ 0.0, 1.0, 3.0],
+                       [ 0.0, 1.0, 3.0],
                        [ 4.0, 1.0, 8.0],
                        [-4.0,-6.0, 3.0],
                        [-5.0, 0.0,-1.0],
@@ -240,7 +242,7 @@ def test_traverse(cl_kernels):
     flags_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, n_nodes * np.dtype('float32').itemsize
     )
-    n_collisions = 2 + 5 # Reports self-collisions
+    n_collisions = 2
     collisions_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, n_collisions * 2 * np.dtype('uint32').itemsize
     )
@@ -307,5 +309,5 @@ def test_traverse(cl_kernels):
         0, (n_collisions, 2), np.dtype('uint32'),
         wait_for=[find_collisions], is_blocking=True
     )
-    expected = set(zip(range(5), (range(5)))) | {(3, 4), (4, 3)}
+    expected = {(0, 1), (4, 5)}
     assert set(map(tuple, collisions_map)) == expected
