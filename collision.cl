@@ -146,10 +146,10 @@ kernel void generateBounds(global struct Bound * const bounds,
     const size_t D = 3;
     const size_t leaf_start = n - 1;
     size_t node_idx = leaf_start + get_global_id(0);
+    const unsigned int coords_idx = nodes[node_idx].leaf.id;
     for (size_t d = 0; d < D; d++) {
-        size_t idx = nodes[node_idx].leaf.id;
-        bounds[node_idx].min[d] = coords[idx*D+d] - radii[idx];
-        bounds[node_idx].max[d] = coords[idx*D+d] + radii[idx];
+        bounds[node_idx].min[d] = coords[coords_idx*D+d] - radii[coords_idx];
+        bounds[node_idx].max[d] = coords[coords_idx*D+d] + radii[coords_idx];
     }
 
     do {
@@ -157,8 +157,8 @@ kernel void generateBounds(global struct Bound * const bounds,
         // Mark internal node as visited, and only process after children
         if (atomic_inc(&flags[node_idx]) < 1)
             break;
+        const global unsigned int * child_idxs = nodes[node_idx].internal.children;
         for (size_t d = 0; d < D; d++) {
-            const global unsigned int * child_idxs = nodes[node_idx].internal.children;
             bounds[node_idx].min[d] = min(bounds[child_idxs[0]].min[d],
                                           bounds[child_idxs[1]].min[d]);
             bounds[node_idx].max[d] = max(bounds[child_idxs[0]].max[d],
