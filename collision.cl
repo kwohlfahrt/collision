@@ -105,10 +105,11 @@ struct Node {
     };
 } __attribute__((packed));
 
-kernel void fillInternal(global struct Node * const nodes) {
+kernel void fillInternal(global struct Node * const nodes,
+                         const global unsigned int * const ids) {
     const unsigned int n = get_global_size(0);
     const size_t leaf_start = (n - 1);
-    nodes[leaf_start + get_global_id(0)].leaf.id = get_global_id(0);
+    nodes[leaf_start + get_global_id(0)].leaf.id = ids[get_global_id(0)];
     nodes[leaf_start + get_global_id(0)].right_edge = get_global_id(0);
 }
 
@@ -210,14 +211,14 @@ kernel void traverse(global unsigned int * const collisions,
         if (overlap_a && isLeaf(child_a, n)) {
             const unsigned long collision_idx = atom_inc(next);
             if (collision_idx < n_collisions) {
-                collisions[collision_idx*2+0] = query_idx;
+                collisions[collision_idx*2+0] = nodes[leaf_start+query_idx].leaf.id;
                 collisions[collision_idx*2+1] = nodes[child_a].leaf.id;
             }
         }
         if (overlap_b && isLeaf(child_b, n)) {
             const unsigned long collision_idx = atom_inc(next);
             if (collision_idx < n_collisions) {
-                collisions[collision_idx*2+0] = query_idx;
+                collisions[collision_idx*2+0] = nodes[leaf_start+query_idx].leaf.id;
                 collisions[collision_idx*2+1] = nodes[child_b].leaf.id;
             }
         }

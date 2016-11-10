@@ -35,13 +35,17 @@ def test_fill_internal(cl_kernels):
     ctx, cq, kernels = cl_kernels
 
     n = 8
+    ids = np.random.permutation(n).astype('uint32')
     nodes_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, (2 * n - 1) * Node.itemsize
+    )
+    ids_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ids
     )
 
     fill_internal = kernels['fillInternal'](
         cq, (n,), None,
-        nodes_buf
+        nodes_buf, ids_buf
     )
 
     (nodes_map, _) = cl.enqueue_map_buffer(
@@ -51,7 +55,8 @@ def test_fill_internal(cl_kernels):
     )
     nodes_map.dtype = Node
 
-    np.testing.assert_equal(nodes_map['data'][:, 0], np.arange(n))
+    np.testing.assert_equal(nodes_map['data'][:, 0], ids)
+    np.testing.assert_equal(nodes_map['right_edge'], np.arange(n))
 
 
 def test_generate_bvh(cl_kernels):
@@ -60,6 +65,7 @@ def test_generate_bvh(cl_kernels):
     # From Figure 3
     codes = np.array([0b00001, 0b00010, 0b00100, 0b00101,
                       0b10011, 0b11000, 0b11001, 0b11110], dtype='uint32')
+    ids = np.arange(len(codes), dtype='uint32')
     n_nodes = len(codes) * 2 - 1
 
     codes_buf = cl.Buffer(
@@ -68,10 +74,13 @@ def test_generate_bvh(cl_kernels):
     nodes_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, n_nodes * Node.itemsize
     )
+    ids_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ids
+    )
 
     fill_internal = kernels['fillInternal'](
         cq, (len(codes),), None,
-        nodes_buf
+        nodes_buf, ids_buf
     )
     generate_bvh = kernels['generateBVH'](
         cq, (len(codes) - 1,), None,
@@ -109,6 +118,7 @@ def test_generate_odd_bvh(cl_kernels):
     # From Figure 3
     codes = np.array([0b00001, 0b00010, 0b00100, 0b00101,
                       0b10011, 0b11000, 0b11001], dtype='uint32')
+    ids = np.arange(len(codes), dtype='uint32')
     n_nodes = len(codes) * 2 - 1
 
     codes_buf = cl.Buffer(
@@ -117,10 +127,13 @@ def test_generate_odd_bvh(cl_kernels):
     nodes_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, n_nodes * Node.itemsize
     )
+    ids_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ids
+    )
 
     fill_internal = kernels['fillInternal'](
         cq, (len(codes),), None,
-        nodes_buf
+        nodes_buf, ids_buf
     )
     generate_bvh = kernels['generateBVH'](
         cq, (len(codes) - 1,), None,
@@ -162,9 +175,9 @@ def test_compute_bounds(cl_kernels):
     nodes = np.array([(-1, 3, [leaf+0, 1]),
                       ( 0, 3, [leaf+3, 2]),
                       ( 1, 2, [leaf+1, leaf+2]),
-                      ( 0, 0, [0, -1]),
-                      ( 2, 1, [1, -1]),
-                      ( 2, 2, [2, -1]),
+                      ( 0, 0, [2, -1]),
+                      ( 2, 1, [0, -1]),
+                      ( 2, 2, [1, -1]),
                       ( 1, 3, [3, -1])], dtype=Node)
 
     coords_buf = cl.Buffer(
@@ -199,11 +212,11 @@ def test_compute_bounds(cl_kernels):
     )
 
     expected = np.array([[[-6.0,-7.0,-2.0], [ 5.0, 2.0, 9.0]],
-                         [[-6.0,-7.0,-2.0], [ 5.0, 2.0, 9.0]],
-                         [[-5.0,-7.0, 2.0], [ 5.0, 2.0, 9.0]],
+                         [[-6.0,-1.0,-2.0], [ 5.0, 2.0, 9.0]],
+                         [[-1.0, 0.0, 2.0], [ 5.0, 2.0, 9.0]],
+                         [[-5.0,-7.0, 2.0], [-3.0,-5.0, 4.0]],
                          [[-1.0, 0.0, 2.0], [ 1.0, 2.0, 4.0]],
                          [[ 3.0, 0.0, 7.0], [ 5.0, 2.0, 9.0]],
-                         [[-5.0,-7.0, 2.0], [-3.0,-5.0, 4.0]],
                          [[-6.0,-1.0,-2.0], [-4.0, 1.0, 0.0]]], dtype='float32')
     np.testing.assert_equal(bounds_map, expected)
 
@@ -240,7 +253,7 @@ def test_traverse(cl_kernels):
         ctx, cl.mem_flags.READ_WRITE, n_nodes * 3 * 2 * np.dtype('float32').itemsize
     )
     flags_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_WRITE, n_nodes * np.dtype('float32').itemsize
+        ctx, cl.mem_flags.READ_WRITE, n_nodes * np.dtype('uint32').itemsize
     )
     n_collisions = 2
     collisions_buf = cl.Buffer(
@@ -261,11 +274,17 @@ def test_traverse(cl_kernels):
         0, (len(coords),), np.dtype('uint32'),
         wait_for=[calc_codes], is_blocking=True
     )
-    codes_map[...] = np.sort(codes_map, kind='mergesort')
+    order = np.argsort(codes_map, kind='mergesort').astype('uint32')
+    codes_map[...] = codes_map[order]
     del codes_map
+
+    ids_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=order
+    )
+
     fill_internal = kernels['fillInternal'](
         cq, (len(coords),), None,
-        nodes_buf
+        nodes_buf, ids_buf
     )
     generate_bvh = kernels['generateBVH'](
         cq, (len(coords)-1,), None,
