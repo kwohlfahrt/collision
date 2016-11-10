@@ -3,6 +3,7 @@ import pyopencl as cl
 from pathlib import Path
 import pytest
 from itertools import product as cartesian
+from collision import Node
 
 np.random.seed(4)
 
@@ -11,10 +12,8 @@ kernel_args = {'generateBVH': None,
                'generateBounds': None,
                'calculateCodes': None,
                'traverse': [None, None, np.dtype('uint64'), None, None],}
-Node = np.dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
 @pytest.fixture(scope='module')
-
 def cl_kernels():
     ctx = cl.create_some_context()
     cq = cl.CommandQueue(ctx)
@@ -312,7 +311,6 @@ def test_traverse(cl_kernels):
         cq, (len(coords),), None,
         collisions_buf, n_collisions_buf, n_collisions, nodes_buf, bounds_buf,
         wait_for=[clear_collisions, clear_n_collisions, calc_bounds],
-        global_offset=(0,)
     )
 
     (n_collisions_map, _) = cl.enqueue_map_buffer(
