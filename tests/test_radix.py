@@ -10,7 +10,7 @@ kernel_args = {'histogram': [None, None, np.dtype('int32'),
                              np.dtype('int8'), np.dtype('int8')],
                'local_scan': [None, None],
                'block_scan': [None, None],
-               'scatter': [None, None, np.dtype('int32'),
+               'scatter': [None, None, None, None, np.dtype('int32'),
                            None, np.dtype('int8'), np.dtype('int8')]}
 
 @pytest.fixture(scope='module')
@@ -187,7 +187,8 @@ def test_scatter(cl_kernels):
 
     calc_scatter = kernels['scatter'](
         cq, (1,), (1,),
-        in_keys_buf, out_keys_buf, len(in_keys), histogram_buf, radix_pass, radix_bits,
+        in_keys_buf, out_keys_buf, None, None, len(in_keys),
+        histogram_buf, radix_pass, radix_bits,
         g_times_l=True
     )
 
@@ -262,7 +263,8 @@ def test_sort_pass(cl_kernels):
         )
         calc_scatter = kernels['scatter'](
             cq, (ngroups,), (group_items,),
-            values_buf, out_values_buf, len(values), histogram_buf, radix_pass, radix_bits,
+            values_buf, out_values_buf, None, None, len(values),
+            histogram_buf, radix_pass, radix_bits,
             g_times_l=True, wait_for=[calc_scan]
         )
         fill_values = cl.enqueue_copy(

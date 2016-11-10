@@ -84,7 +84,8 @@ class PrefixScanner:
 class RadixProgram(Program):
     src = Path(__file__).parent / "radix.cl"
     kernel_args = {'histogram': [None, None, dtype('int32'), dtype('int8'), dtype('int8')],
-                   'scatter': [None, None, dtype('int32'), None, dtype('int8'), dtype('int8')]}
+                   'scatter': [None, None, None, None, dtype('int32'),
+                               None, dtype('int8'), dtype('int8')],}
 
 class RadixSorter:
     value_dtype = dtype('uint32')
@@ -122,7 +123,8 @@ class RadixSorter:
         return (2 ** self.radix_bits) * self.ngroups * self.group_size
 
 
-    def sort(self, cq, values_buf, out_values_buf, wait_for=None):
+    def sort(self, cq, keys_buf, out_keys_buf,
+             in_values_buf=None, out_values_buf=None, wait_for=None):
         wait_for = wait_for or []
         for radix_pass in range(self.num_passes):
             clear_histogram = cl.enqueue_fill_buffer(
@@ -131,19 +133,26 @@ class RadixSorter:
             )
             calc_hist = self.program.kernels['histogram'](
                 cq, (self.ngroups,), (self.group_size,),
-                self._histogram_buf, values_buf, self.size, radix_pass, self.radix_bits,
+                self._histogram_buf, keys_buf, self.size, radix_pass, self.radix_bits,
                 g_times_l=True, wait_for=[clear_histogram] + wait_for
             )
             calc_scan = self.scanner.prefix_sum(cq, self._histogram_buf, [calc_hist])
             calc_scatter = self.program.kernels['scatter'](
                 cq, (self.ngroups,), (self.group_size,),
-                values_buf, out_values_buf, self.size, self._histogram_buf,
-                radix_pass, self.radix_bits,
+                keys_buf, out_keys_buf, in_values_buf, out_values_buf, self.size,
+                self._histogram_buf, radix_pass, self.radix_bits,
                 g_times_l=True, wait_for=[calc_scan]
             )
-            fill_values = cl.enqueue_copy(
-                cq, values_buf, out_values_buf, byte_count=self.size * self.value_dtype.itemsize,
+            fill_keys = cl.enqueue_copy(
+                cq, keys_buf, out_keys_buf, byte_count=self.size * self.value_dtype.itemsize,
                 wait_for=[calc_scatter]
             )
-            wait_for = [fill_values]
+            wait_for = [fill_keys]
+            if in_values_buf is not None and out_values_buf is not None:
+                fill_values = cl.enqueue_copy(
+                    cq, in_values_buf, out_values_buf,
+                    byte_count=self.size * self.value_dtype.itemsize,
+                    wait_for=[calc_scatter]
+                )
+                wait_for.append(fill_values)
         return calc_scatter

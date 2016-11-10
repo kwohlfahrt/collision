@@ -65,6 +65,8 @@ kernel void block_scan(global unsigned int * const data,
 
 kernel void scatter(const global unsigned int * in_keys,
                     global unsigned int * out_keys,
+                    global unsigned int * in_values,
+                    global unsigned int * out_values,
                     const unsigned int n,
                     global unsigned int * histograms,
                     const unsigned char pass, const unsigned char radix_bits) {
@@ -78,5 +80,7 @@ kernel void scatter(const global unsigned int * in_keys,
                        + get_group_id(0) * get_local_size(0)
                        + get_local_id(0)]++;
         out_keys[new_idx] = in_keys[i];
+        if (out_values != NULL && in_values != NULL)
+            out_values[new_idx] = in_values[i];
     }
 }

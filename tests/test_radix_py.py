@@ -99,3 +99,42 @@ def test_sorter(cl_sort):
         wait_for=[calc_sort], is_blocking=True
     )
     np.testing.assert_equal(out_map, np.sort(data))
+
+def test_arg_sorter(cl_sort):
+    ctx, cq, program, scan_program = cl_sort
+    group_size = 32
+    ngroups = 10
+    size = group_size * ngroups * 50
+    sorter = RadixSorter(program, size, ngroups, group_size, scan_program=scan_program)
+    keys = np.random.randint(500, size=size, dtype='uint32')
+    keys_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
+    )
+
+    values = np.random.randint(500, size=size, dtype='uint32')
+    values_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
+    )
+
+    out_keys_buf = cl.Buffer(
+        ctx, cl.mem_flags.WRITE_ONLY , keys.nbytes
+    )
+    out_values_buf = cl.Buffer(
+        ctx, cl.mem_flags.WRITE_ONLY , values.nbytes
+    )
+
+    calc_sort = sorter.sort(cq, keys_buf, out_keys_buf, values_buf, out_values_buf)
+
+    (out_keys_map, _) = cl.enqueue_map_buffer(
+        cq, out_keys_buf, cl.map_flags.READ,
+        0, keys.shape, keys.dtype,
+        wait_for=[calc_sort], is_blocking=True
+    )
+    np.testing.assert_equal(out_keys_map, np.sort(keys))
+
+    (out_values_map, _) = cl.enqueue_map_buffer(
+        cq, out_values_buf, cl.map_flags.READ,
+        0, keys.shape, keys.dtype,
+        wait_for=[calc_sort], is_blocking=True
+    )
+    np.testing.assert_equal(out_values_map, values[np.argsort(keys, kind='mergesort')])
