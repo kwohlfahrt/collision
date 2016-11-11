@@ -1,8 +1,6 @@
 import numpy as np
 import pyopencl as cl
-from pathlib import Path
 import pytest
-from itertools import product as cartesian
 from radix import *
 
 np.random.seed(4)
