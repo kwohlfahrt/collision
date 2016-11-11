@@ -124,15 +124,10 @@ class RadixSorter:
     def __init__(self, program, size, ngroups, group_size, radix_bits=4, scan_program=None):
         ctx = program.context
         self.program = program
-        if (size % (group_size * ngroups)):
-            raise ValueError("Size ({}) must be multiple of group_size x ngroups ({} x {})"
-                             .format(size, group_size, ngroups))
+        self.check_size(size, ngroups, group_size, radix_bits)
         self.size = size
         self.ngroups = ngroups
         self.group_size = group_size
-        if (self.value_dtype.itemsize * 8) % radix_bits:
-            raise ValueError("Radix bits ({}) must evenly divide item-size ({})"
-                             .format(radix_bits, self.value_dtype.itemsize))
         self.radix_bits = radix_bits
 
         if scan_program is None:
@@ -144,6 +139,47 @@ class RadixSorter:
             self.histogram_len * self.histogram_dtype.itemsize
         )
 
+    @classmethod
+    def check_size(cls, size, ngroups, group_size, radix_bits):
+        if (size % (group_size * ngroups)):
+            raise ValueError("Size ({}) must be multiple of group_size x ngroups ({} x {})"
+                             .format(size, group_size, ngroups))
+        if (cls.value_dtype.itemsize * 8) % radix_bits:
+            raise ValueError("Radix bits ({}) must evenly divide item-size ({})"
+                             .format(radix_bits, cls.value_dtype.itemsize))
+
+    def resize(self, size=None, ngroups=None, group_size=None, radix_bits=None):
+        ctx = self.program.context
+        if size is None:
+            size = self.size
+        if ngroups is None:
+            ngroups = self.ngroups
+        if group_size is None:
+            group_size = self.group_size
+        if radix_bits is None:
+            radix_bits = self.radix_bits
+        old_histogram_len = self.histogram_len
+        old_params = (self.size, self.ngroups, self.group_size, self.radix_bits)
+
+        self.check_size(size, ngroups, group_size, radix_bits)
+
+        self.size = size
+        self.ngroups = ngroups
+        self.group_size = group_size
+        self.radix_bits = radix_bits
+
+        try:
+            self.scanner.resize(self.histogram_len, self.group_size)
+        except:
+            self.size, self.ngroups, self.group_size, self.radix_bits = old_params
+            raise
+
+        if self.histogram_len != old_histogram_len:
+            self._histogram_buf = cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.histogram_len * self.histogram_dtype.itemsize
+            )
+
     @property
     def num_passes(self):
         return (self.value_dtype.itemsize * 8) // self.radix_bits
@@ -151,7 +187,6 @@ class RadixSorter:
     @property
     def histogram_len(self):
         return (2 ** self.radix_bits) * self.ngroups * self.group_size
-
 
     def sort(self, cq, keys_buf, out_keys_buf,
              in_values_buf=None, out_values_buf=None, wait_for=None):

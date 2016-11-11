@@ -109,6 +109,13 @@ def test_sorter_errs(cl_sort, size, ngroups, group_size, bits):
     with pytest.raises(ValueError):
         sorter = RadixSorter(program, size, ngroups, group_size, bits, scan_program)
 
+@pytest.mark.parametrize("old_shape,new_shape", [((24, 3, 4, 4), (24, 4, 4, 4))])
+def test_sorter_resize_errs(cl_sort, old_shape, new_shape):
+    ctx, cq, program, scan_program = cl_sort
+    sorter = RadixSorter(program, *old_shape, scan_program=scan_program)
+    with pytest.raises(ValueError):
+        sorter.resize(*new_shape)
+
 @pytest.mark.parametrize("bits,expected", [(1, 32), (2, 16), (4, 8), (8, 4)])
 def test_num_passes(cl_sort, bits, expected):
     ctx, cq, program, scan_program = cl_sort
@@ -119,6 +126,33 @@ def test_num_passes(cl_sort, bits, expected):
 def test_sorter(cl_sort, size, ngroups, group_size):
     ctx, cq, program, scan_program = cl_sort
     sorter = RadixSorter(program, size, ngroups, group_size, scan_program=scan_program)
+    data = np.random.randint(500, size=size, dtype='uint32')
+    data_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=data
+    )
+    out_buf = cl.Buffer(
+        ctx, cl.mem_flags.WRITE_ONLY , data.nbytes
+    )
+
+    calc_sort = sorter.sort(cq, data_buf, out_buf)
+
+    (out_map, _) = cl.enqueue_map_buffer(
+        cq, out_buf, cl.map_flags.READ,
+        0, data.shape, data.dtype,
+        wait_for=[calc_sort], is_blocking=True
+    )
+    np.testing.assert_equal(out_map, np.sort(data))
+
+@pytest.mark.parametrize("old_shape,new_shape", [
+    ((16000,10,32), (20,5,4)),
+    ((20,5,4), (16000,10,32)),
+])
+def test_sorter_resized(cl_sort, old_shape, new_shape):
+    ctx, cq, program, scan_program = cl_sort
+    sorter = RadixSorter(program, *old_shape, scan_program=scan_program)
+    sorter.resize(*new_shape)
+
+    size = new_shape[0] or old_shape[0]
     data = np.random.randint(500, size=size, dtype='uint32')
     data_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=data
