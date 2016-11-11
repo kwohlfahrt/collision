@@ -3,7 +3,7 @@ from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
 from misc import Program
-from radix import RadixSorter, RadixProgram
+from radix import RadixSorter
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
@@ -23,14 +23,18 @@ class Collider:
     counter_dtype = dtype('uint64')
     id_dtype = dtype('uint32')
 
-    def __init__(self, program, size, sorter):
-        ctx = program.context
-        self.program = program
+    def __init__(self, ctx, size, sorter_shape, program=None,
+                 sorter_programs=(None, None)):
         self.size = size
-        if sorter.size != self.size:
-            raise ValueError("Sorter size ({}) must match collider size ({})"
-                             .format(sorter.size, self.size))
-        self.sorter = sorter
+
+        self.sorter = RadixSorter(ctx, size, *sorter_shape,
+                                  program=sorter_programs[0],
+                                  scan_program=sorter_programs[1])
+        if program is None:
+            program = CollisionProgram(ctx)
+        elif program.context != ctx:
+            raise ValueError("Collider and program context must match")
+        self.program = program
 
         # Can't sort in-place
         self._ids_bufs = [cl.Buffer(
