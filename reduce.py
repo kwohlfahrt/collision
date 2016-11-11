@@ -26,6 +26,23 @@ class Reducer:
             self.group_size * 2 * 3 * self.value_dtype.itemsize
         )
 
+    def resize(self, ngroups=None, group_size=None):
+        ctx = self.program.context
+        if ngroups is None:
+            ngroups = self.ngroups
+        if group_size is None:
+            group_size = self.group_size
+
+        old_group_size = self.group_size
+        self.ngroups = ngroups
+        self.group_size = group_size
+
+        if self.group_size != old_group_size:
+            self._group_buf = cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.group_size * 2 * 3 * self.value_dtype.itemsize
+            )
+
     def reduce(self, cq, size, values_buf, output_buf, wait_for=None):
         e = self.program.kernels['bounds1'](
             cq, (self.ngroups,), (self.group_size,),
