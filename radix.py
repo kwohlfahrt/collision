@@ -43,6 +43,9 @@ class PrefixScanner:
             size = roundUp(size, self.group_size * 2)
             block_sizes.append(size)
             size = ceildiv(size, self.group_size * 2)
+        # Round to next power of 2
+        if size != 2 ** (size.bit_length() - 1):
+            size = 2 ** size.bit_length()
         block_sizes.append(size)
         return tuple(block_sizes)
 

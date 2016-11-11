@@ -36,14 +36,16 @@ def test_scanner_errs(cl_scan, size, group_size):
     (1024, 4, (128, 16, 2)),
     (20, 2, (8, 2)),
     (24, 4, (8,)),
-    (1032, 4, (136, 24, 3)),
+    (1032, 4, (136, 24, 4)),
+    (160, 4, (24, 4)),
+    (320, 4, (40, 8)),
 ])
 def test_block_levels(cl_scan, size, group_size, expected):
     ctx, cq, program = cl_scan
     scanner = PrefixScanner(program, size, group_size)
     assert scanner.block_lengths == expected
 
-@pytest.mark.parametrize("size,group_size", [(20, 2), (24, 4), (1024, 4)])
+@pytest.mark.parametrize("size,group_size", [(20, 2), (24, 4), (1024, 4), (160, 4), (320, 4)])
 def test_prefix_sum(cl_env, size, group_size):
     ctx, cq = cl_env
     program = PrefixScanProgram(ctx)
@@ -77,7 +79,7 @@ def test_num_passes(cl_sort, bits, expected):
     sorter = RadixSorter(program, 24, 3, 4, bits, scan_program=scan_program)
     assert sorter.num_passes == expected
 
-@pytest.mark.parametrize("size,ngroups,group_size", [(16000,10,32)])
+@pytest.mark.parametrize("size,ngroups,group_size", [(16000,10,32), (20,5,4)])
 def test_sorter(cl_sort, size, ngroups, group_size):
     ctx, cq, program, scan_program = cl_sort
     sorter = RadixSorter(program, size, ngroups, group_size, scan_program=scan_program)
