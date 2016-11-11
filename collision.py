@@ -27,7 +27,6 @@ class Collider:
         ctx = program.context
         self.program = program
         self.size = size
-        self.n_nodes = size * 2 - 1
         if sorter.size != self.size:
             raise ValueError("Sorter size ({}) must match collider size ({})"
                              .format(sorter.size, self.size))
@@ -59,6 +58,39 @@ class Collider:
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_READ_ONLY,
             self.counter_dtype.itemsize
         )
+
+    def resize(self, size=None, sorter_shape=(None, None, None)):
+        ctx = self.program.context
+        self.sorter.resize(size, *sorter_shape)
+        old_size = self.size
+        self.size = size
+
+        if old_size != size:
+            self._ids_bufs = [cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.size * self.id_dtype.itemsize
+            ) for _ in range(2)]
+            self._codes_bufs = [cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.size * self.code_dtype.itemsize
+            ) for _ in range(2)]
+
+            self._nodes_buf = cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.n_nodes * Node.itemsize
+            )
+            self._bounds_buf = cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.n_nodes * 2 * 3 * self.coord_dtype.itemsize
+            )
+            self._flags_buf = cl.Buffer(
+                ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+                self.n_nodes * self.flag_dtype.itemsize
+            )
+
+    @property
+    def n_nodes(self):
+        return self.size * 2 - 1
 
     def get_collisions(self, cq, coords_buf, radii_buf, range_buf,
                        collisions_buf, n_collisions, wait_for=None):

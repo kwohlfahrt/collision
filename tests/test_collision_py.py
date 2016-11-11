@@ -110,3 +110,47 @@ def test_random_collision(cl_collision, size, sorter_shape):
     # Need to test both directions, order is not clear from tree
     assert (collisions | set(map(tuple, map(reversed, collisions))) ==
             expected | set(map(tuple, map(reversed, expected))))
+
+@pytest.mark.parametrize("old_shape,new_shape", [((5,(5,1)), (20,(5,4)))])
+def test_random_collision_resized(cl_collision, old_shape, new_shape):
+    ctx, cq, program, radix_program = cl_collision
+
+    sorter = RadixSorter(radix_program, old_shape[0], *old_shape[1])
+    collider = Collider(program, old_shape[0], sorter)
+    collider.resize(*new_shape)
+
+    np.random.seed(4)
+    size = new_shape[0] or old_shape[0]
+    coords = np.random.random((size, 3)).astype(collider.coord_dtype)
+    radius = 1 / (size ** 0.5) # Keep number of collisions under control
+    radii = np.random.uniform(0, radius, len(coords)).astype(collider.coord_dtype)
+    expected = find_collisions(coords, radii)
+
+    coords_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+    )
+    range_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
+    )
+    radii_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
+    )
+    collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
+    )
+
+    n = collider.get_collisions(cq, coords_buf, radii_buf, range_buf,
+                                collisions_buf, len(expected))
+    assert n == len(expected)
+
+    (collisions_map, _) = cl.enqueue_map_buffer(
+        cq, collisions_buf, cl.map_flags.READ,
+        0, (n, 2), collider.id_dtype,
+        is_blocking=True
+    )
+    collisions = set(map(tuple, collisions_map))
+
+    # Need to test both directions, order is not clear from tree
+    assert (collisions | set(map(tuple, map(reversed, collisions))) ==
+            expected | set(map(tuple, map(reversed, expected))))
