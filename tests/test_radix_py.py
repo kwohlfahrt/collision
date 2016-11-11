@@ -20,24 +20,23 @@ def cl_scan(cl_env):
     return ctx, cq, program
 
 @pytest.fixture(scope='module')
-def cl_sort(cl_env):
-    ctx, cq = cl_env
+def cl_sort(cl_scan):
+    ctx, cq, scan_program = cl_scan
     radix_program = RadixProgram(ctx)
-    scan_program = PrefixScanProgram(ctx)
     return ctx, cq, radix_program, scan_program
 
 @pytest.mark.parametrize("size,group_size", [(1023, 4), (20, 4), (96, 6)])
 def test_scanner_errs(cl_scan, size, group_size):
     ctx, cq, program = cl_scan
     with pytest.raises(ValueError):
-        PrefixScanner(program, size, group_size)
+        PrefixScanner(ctx, size, group_size, program=program)
 
 @pytest.mark.parametrize("old_shape,new_shape", [
     ((1024, 4), (1023, 4)),
 ])
 def test_scanner_resize_errs(cl_scan, old_shape, new_shape):
     ctx, cq, program = cl_scan
-    scanner = PrefixScanner(program, *old_shape)
+    scanner = PrefixScanner(ctx, *old_shape, program=program)
     with pytest.raises(ValueError):
         scanner.resize(*new_shape)
 
@@ -51,14 +50,13 @@ def test_scanner_resize_errs(cl_scan, old_shape, new_shape):
 ])
 def test_block_levels(cl_scan, size, group_size, expected):
     ctx, cq, program = cl_scan
-    scanner = PrefixScanner(program, size, group_size)
+    scanner = PrefixScanner(ctx, size, group_size, program=program)
     assert scanner.block_lengths == expected
 
 @pytest.mark.parametrize("size,group_size", [(20, 2), (24, 4), (1024, 4), (160, 4), (320, 4)])
-def test_prefix_sum(cl_env, size, group_size):
-    ctx, cq = cl_env
-    program = PrefixScanProgram(ctx)
-    scanner = PrefixScanner(program, size, group_size)
+def test_prefix_sum(cl_scan, size, group_size):
+    ctx, cq, program = cl_scan
+    scanner = PrefixScanner(ctx, size, group_size, program=program)
 
     values = np.random.randint(0, size, size=size, dtype='uint32')
     values_buf = cl.Buffer(
@@ -81,10 +79,9 @@ def test_prefix_sum(cl_env, size, group_size):
     ((24, 2), (None, 4)),
     ((160, 4), (1024, None)),
 ])
-def test_scanner_resized(cl_env, old_shape, new_shape):
-    ctx, cq = cl_env
-    program = PrefixScanProgram(ctx)
-    scanner = PrefixScanner(program, *old_shape)
+def test_scanner_resized(cl_scan, old_shape, new_shape):
+    ctx, cq, program = cl_scan
+    scanner = PrefixScanner(ctx, *old_shape, program=program)
     scanner.resize(*new_shape)
 
     size = new_shape[0] or old_shape[0]
@@ -107,25 +104,25 @@ def test_scanner_resized(cl_env, old_shape, new_shape):
 def test_sorter_errs(cl_sort, size, ngroups, group_size, bits):
     ctx, cq, program, scan_program = cl_sort
     with pytest.raises(ValueError):
-        sorter = RadixSorter(program, size, ngroups, group_size, bits, scan_program)
+        sorter = RadixSorter(ctx, size, ngroups, group_size, bits, program, scan_program)
 
 @pytest.mark.parametrize("old_shape,new_shape", [((24, 3, 4, 4), (24, 4, 4, 4))])
 def test_sorter_resize_errs(cl_sort, old_shape, new_shape):
     ctx, cq, program, scan_program = cl_sort
-    sorter = RadixSorter(program, *old_shape, scan_program=scan_program)
+    sorter = RadixSorter(ctx, *old_shape, program=program, scan_program=scan_program)
     with pytest.raises(ValueError):
         sorter.resize(*new_shape)
 
 @pytest.mark.parametrize("bits,expected", [(1, 32), (2, 16), (4, 8), (8, 4)])
 def test_num_passes(cl_sort, bits, expected):
     ctx, cq, program, scan_program = cl_sort
-    sorter = RadixSorter(program, 24, 3, 4, bits, scan_program=scan_program)
+    sorter = RadixSorter(ctx, 24, 3, 4, bits, program, scan_program)
     assert sorter.num_passes == expected
 
 @pytest.mark.parametrize("size,ngroups,group_size", [(16000,10,32), (20,5,4)])
 def test_sorter(cl_sort, size, ngroups, group_size):
     ctx, cq, program, scan_program = cl_sort
-    sorter = RadixSorter(program, size, ngroups, group_size, scan_program=scan_program)
+    sorter = RadixSorter(ctx, size, ngroups, group_size, program=program, scan_program=scan_program)
     data = np.random.randint(500, size=size, dtype='uint32')
     data_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=data
@@ -149,7 +146,7 @@ def test_sorter(cl_sort, size, ngroups, group_size):
 ])
 def test_sorter_resized(cl_sort, old_shape, new_shape):
     ctx, cq, program, scan_program = cl_sort
-    sorter = RadixSorter(program, *old_shape, scan_program=scan_program)
+    sorter = RadixSorter(ctx, *old_shape, program=program, scan_program=scan_program)
     sorter.resize(*new_shape)
 
     size = new_shape[0] or old_shape[0]
@@ -175,7 +172,7 @@ def test_arg_sorter(cl_sort):
     group_size = 32
     ngroups = 10
     size = group_size * ngroups * 50
-    sorter = RadixSorter(program, size, ngroups, group_size, scan_program=scan_program)
+    sorter = RadixSorter(ctx, size, ngroups, group_size, program=program, scan_program=scan_program)
     keys = np.random.randint(500, size=size, dtype='uint32')
     keys_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
@@ -208,3 +205,10 @@ def test_arg_sorter(cl_sort):
         wait_for=[calc_sort], is_blocking=True
     )
     np.testing.assert_equal(out_values_map, values[np.argsort(keys, kind='mergesort')])
+
+def test_auto_program(cl_env):
+    ctx, cq = cl_env
+    group_size = 32
+    ngroups = 10
+    size = group_size * ngroups * 50
+    sorter = RadixSorter(ctx, size, ngroups, group_size)

@@ -18,12 +18,16 @@ class PrefixScanProgram(Program):
 class PrefixScanner:
     block_sums_dtype = dtype('uint32')
 
-    def __init__(self, program, size, group_size):
-        ctx = program.context
-        self.program = program
+    def __init__(self, ctx, size, group_size, program=None):
         self.check_size(size, group_size)
         self.size = size
         self.group_size = group_size
+
+        if program is None:
+            program = PrefixScanProgram(ctx)
+        elif program.context != ctx:
+            raise ValueError("Scanner and program context must match")
+        self.program = program
 
         self._block_sums_bufs = [cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
@@ -121,18 +125,22 @@ class RadixSorter:
     value_dtype = dtype('uint32')
     histogram_dtype = dtype('uint32')
 
-    def __init__(self, program, size, ngroups, group_size, radix_bits=4, scan_program=None):
-        ctx = program.context
-        self.program = program
+    def __init__(self, ctx, size, ngroups, group_size, radix_bits=4,
+                 program=None, scan_program=None):
         self.check_size(size, ngroups, group_size, radix_bits)
         self.size = size
         self.ngroups = ngroups
         self.group_size = group_size
         self.radix_bits = radix_bits
 
+        if program is None:
+            program = RadixProgram(ctx)
+        elif program.context != ctx:
+            raise ValueError("Sorter and program contextx must match")
         if scan_program is None:
             scan_program = PrefixScanProgram(ctx)
-        self.scanner = PrefixScanner(scan_program, self.histogram_len, self.group_size)
+        self.scanner = PrefixScanner(ctx, self.histogram_len, self.group_size, scan_program)
+        self.program = program
 
         self._histogram_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,

@@ -40,7 +40,7 @@ def test_collision(cl_collision):
     radii = np.ones(len(coords), dtype='float32')
     expected = {(0, 1), (4, 5)}
 
-    sorter = RadixSorter(radix_program, len(coords), 3, 2)
+    sorter = RadixSorter(ctx, len(coords), 3, 2, program=radix_program)
     collider = Collider(program, len(coords), sorter)
 
     coords_buf = cl.Buffer(
@@ -73,7 +73,7 @@ def test_collision(cl_collision):
 def test_random_collision(cl_collision, size, sorter_shape):
     ctx, cq, program, radix_program = cl_collision
 
-    sorter = RadixSorter(radix_program, size, *sorter_shape)
+    sorter = RadixSorter(ctx, size, *sorter_shape, program=radix_program)
     collider = Collider(program, size, sorter)
 
     np.random.seed(4)
@@ -115,7 +115,7 @@ def test_random_collision(cl_collision, size, sorter_shape):
 def test_random_collision_resized(cl_collision, old_shape, new_shape):
     ctx, cq, program, radix_program = cl_collision
 
-    sorter = RadixSorter(radix_program, old_shape[0], *old_shape[1])
+    sorter = RadixSorter(ctx, old_shape[0], *old_shape[1], program=radix_program)
     collider = Collider(program, old_shape[0], sorter)
     collider.resize(*new_shape)
 
