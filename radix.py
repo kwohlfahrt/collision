@@ -21,6 +21,8 @@ class PrefixScanner:
     def __init__(self, program, size, group_size):
         ctx = program.context
         self.program = program
+        if group_size != 2 ** (group_size.bit_length() - 1):
+            raise ValueError("Group size ({}) must be a power of two".format(group_size))
         if size % (group_size * 2):
             raise ValueError("Size must be multiple of 2 * group_size ({})".format(group_size))
         self.size = size
@@ -95,8 +97,8 @@ class RadixSorter:
         ctx = program.context
         self.program = program
         if (size % (group_size * ngroups)):
-            raise ValueError("Size must be multiple of group_size x ngroups ({} x {})"
-                             .format(group_size, ngroups))
+            raise ValueError("Size ({}) must be multiple of group_size x ngroups ({} x {})"
+                             .format(size, group_size, ngroups))
         self.size = size
         self.ngroups = ngroups
         self.group_size = group_size

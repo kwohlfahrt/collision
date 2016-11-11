@@ -26,7 +26,7 @@ def cl_sort(cl_env):
     scan_program = PrefixScanProgram(ctx)
     return ctx, cq, radix_program, scan_program
 
-@pytest.mark.parametrize("size,group_size", [(1023, 4), (20, 4)])
+@pytest.mark.parametrize("size,group_size", [(1023, 4), (20, 4), (96, 6)])
 def test_scanner_errs(cl_scan, size, group_size):
     ctx, cq, program = cl_scan
     with pytest.raises(ValueError):
@@ -77,11 +77,9 @@ def test_num_passes(cl_sort, bits, expected):
     sorter = RadixSorter(program, 24, 3, 4, bits, scan_program=scan_program)
     assert sorter.num_passes == expected
 
-def test_sorter(cl_sort):
+@pytest.mark.parametrize("size,ngroups,group_size", [(16000,10,32)])
+def test_sorter(cl_sort, size, ngroups, group_size):
     ctx, cq, program, scan_program = cl_sort
-    group_size = 32
-    ngroups = 10
-    size = group_size * ngroups * 50
     sorter = RadixSorter(program, size, ngroups, group_size, scan_program=scan_program)
     data = np.random.randint(500, size=size, dtype='uint32')
     data_buf = cl.Buffer(
