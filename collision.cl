@@ -1,5 +1,9 @@
 // https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-i-collision-detection-gpu/
 
+kernel void range(global unsigned int * const idxs) {
+    idxs[get_global_id(0)] = get_global_id(0);
+}
+
 // Interleaves bits with 2 zero bits
 unsigned int expandBits(unsigned int v) {
     v = (v * 0x00010001u) & 0xFF0000FFu;
@@ -27,6 +31,8 @@ kernel void calculateCodes(global unsigned int * const codes,
     codes[get_global_id(0)] = morton(vload3(get_global_id(0), coords), min, max);
 }
 
+// TODO: Paper mentions special case of codes[idx] == codes[idx]
+// Section 2 (Binary radix trees) & Section 4
 char delta(const global unsigned int * const codes, const unsigned int n,
                     const unsigned int idx, const long offset) {
     if (offset < -((long) idx) || offset + idx >= n)

@@ -3,12 +3,14 @@ from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
 from misc import Program
+from radix import RadixSorter, RadixProgram
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
 class CollisionProgram(Program):
     src = Path(__file__).parent / "collision.cl"
-    kernel_args = {'calculateCodes': [None, None, None],
+    kernel_args = {'range': [None],
+                   'calculateCodes': [None, None, None],
                    'fillInternal': [None, None],
                    'generateBVH': [None, None],
                    'generateBounds': [None, None, None, None, None],
@@ -21,22 +23,26 @@ class Collider:
     counter_dtype = dtype('uint64')
     id_dtype = dtype('uint32')
 
-    def __init__(self, program, size):
+    def __init__(self, program, size, sorter):
         ctx = program.context
         self.program = program
         self.size = size
         self.n_nodes = size * 2 - 1
+        if sorter.size != self.size:
+            raise ValueError("Sorter size ({}) must match collider size ({})"
+                             .format(sorter.size, self.size))
+        self.sorter = sorter
 
-        self._ids_buf = cl.Buffer(
-            # TODO: can be host-no-access with radix sort
-            ctx, cl.mem_flags.READ_WRITE,
+        # Can't sort in-place
+        self._ids_bufs = [cl.Buffer(
+            ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.size * self.id_dtype.itemsize
-        )
-        self._codes_buf = cl.Buffer(
-            # TODO: can be host-no-access with radix sort
-            ctx, cl.mem_flags.READ_WRITE,
+        ) for _ in range(2)]
+        self._codes_bufs = [cl.Buffer(
+            ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.size * self.code_dtype.itemsize
-        )
+        ) for _ in range(2)]
+
         self._nodes_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.n_nodes * Node.itemsize
@@ -56,8 +62,10 @@ class Collider:
 
     def get_collisions(self, cq, coords_buf, radii_buf, range_buf,
                        collisions_buf, n_collisions, wait_for=None):
-        from numpy import argsort # TODO: radix-sort
-
+        fill_ids = self.program.kernels['range'](
+            cq, (self.size,), None,
+            self._ids_bufs[0]
+        )
         clear_flags = cl.enqueue_fill_buffer(
             cq, self._flags_buf, zeros(1, dtype='uint32'),
             0, self.n_nodes * self.flag_dtype.itemsize
@@ -66,37 +74,20 @@ class Collider:
             cq, self._n_collisions_buf, zeros(1, dtype='uint64'),
             0, self.counter_dtype.itemsize
         )
-        # TODO: Won't be necessary to map once radix sort is used
-        (ids_map, map_ids) = cl.enqueue_map_buffer(
-            cq, self._ids_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
-            0, (self.size,), self.id_dtype,
-            is_blocking=False
-        )
-
         calc_codes = self.program.kernels['calculateCodes'](
             cq, (self.size,), None,
-            self._codes_buf, coords_buf, range_buf,
+            self._codes_bufs[0], coords_buf, range_buf,
         )
 
-        # TODO: Hook up radix sort
-        (codes_map, _) = cl.enqueue_map_buffer(
-            cq, self._codes_buf, cl.map_flags.READ | cl.map_flags.WRITE,
-            0, (self.size,), self.code_dtype,
-            wait_for=[calc_codes], is_blocking=True
-        )
-        order = argsort(codes_map, kind='mergesort').astype(self.id_dtype)
-        codes_map[...] = codes_map[order]
-        cl.wait_for_events([map_ids])
-        ids_map[...] = order
-        del codes_map, ids_map
+        self.sorter.sort(cq, *self._codes_bufs, *self._ids_bufs)
 
         fill_internal = self.program.kernels['fillInternal'](
             cq, (self.size,), None,
-            self._nodes_buf, self._ids_buf
+            self._nodes_buf, self._ids_bufs[1]
         )
         generate_bvh = self.program.kernels['generateBVH'](
             cq, (self.size-1,), None,
-            self._codes_buf, self._nodes_buf,
+            self._codes_bufs[1], self._nodes_buf,
             wait_for=[calc_codes, fill_internal]
         )
         calc_bounds = self.program.kernels['generateBounds'](

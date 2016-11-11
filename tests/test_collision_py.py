@@ -3,6 +3,7 @@ import pyopencl as cl
 from pathlib import Path
 import pytest
 from itertools import product as cartesian
+from radix import RadixSorter, RadixProgram
 from collision import *
 
 @pytest.fixture(scope='module')
@@ -15,7 +16,8 @@ def cl_env():
 def cl_collision(cl_env):
     ctx, cq = cl_env
     program = CollisionProgram(ctx)
-    return ctx, cq, program
+    radix_program = RadixProgram(ctx)
+    return ctx, cq, program, radix_program
 
 def find_collisions(coords, radii):
     min_bounds = coords - radii.reshape(-1, 1)
@@ -27,7 +29,7 @@ def find_collisions(coords, radii):
     return set(zip(*reversed(np.nonzero(collisions))))
 
 def test_collision(cl_collision):
-    ctx, cq, program = cl_collision
+    ctx, cq, program, radix_program = cl_collision
 
     coords = np.array([[ 0.0, 1.0, 3.0],
                        [ 0.0, 1.0, 3.0],
@@ -38,7 +40,8 @@ def test_collision(cl_collision):
     radii = np.ones(len(coords), dtype='float32')
     expected = {(0, 1), (4, 5)}
 
-    collider = Collider(program, len(coords))
+    sorter = RadixSorter(radix_program, len(coords), 3, 2)
+    collider = Collider(program, len(coords), sorter)
 
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
@@ -65,11 +68,13 @@ def test_collision(cl_collision):
     )
     assert set(map(tuple, collisions_map)) == expected
 
-@pytest.mark.parametrize("size", [5, 20, 100, 256])
-def test_random_collision(cl_collision, size):
-    ctx, cq, program = cl_collision
+@pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
+                                               (100,(5,4)), (256,(4,32))])
+def test_random_collision(cl_collision, size, sorter_shape):
+    ctx, cq, program, radix_program = cl_collision
 
-    collider = Collider(program, size)
+    sorter = RadixSorter(radix_program, size, *sorter_shape)
+    collider = Collider(program, size, sorter)
 
     np.random.seed(4)
     coords = np.random.random((size, 3)).astype(collider.coord_dtype)
