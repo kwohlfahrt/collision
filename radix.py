@@ -1,6 +1,6 @@
 from numpy import dtype, zeros
 from pathlib import Path
-from itertools import accumulate, chain, tee
+from itertools import accumulate, chain, tee, zip_longest
 import pyopencl as cl
 from misc import Program
 
@@ -21,10 +21,7 @@ class PrefixScanner:
     def __init__(self, program, size, group_size):
         ctx = program.context
         self.program = program
-        if group_size != 2 ** (group_size.bit_length() - 1):
-            raise ValueError("Group size ({}) must be a power of two".format(group_size))
-        if size % (group_size * 2):
-            raise ValueError("Size must be multiple of 2 * group_size ({})".format(group_size))
+        self.check_size(size, group_size)
         self.size = size
         self.group_size = group_size
 
@@ -32,6 +29,34 @@ class PrefixScanner:
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             l * self.block_sums_dtype.itemsize
         ) for l in self.block_lengths]
+
+    @staticmethod
+    def check_size(size, group_size):
+        if group_size != 2 ** (group_size.bit_length() - 1):
+            raise ValueError("Group size ({}) must be a power of two".format(group_size))
+        if size % (group_size * 2):
+            raise ValueError("Size must be multiple of 2 * group_size ({})".format(group_size))
+
+    def resize(self, size=None, group_size=None):
+        ctx = self.program.context
+        if size is None:
+            size = self.size
+        if group_size is None:
+            group_size = self.group_size
+        old_block_lengths = self.block_lengths
+
+        self.check_size(size, group_size)
+        self.size = size
+        self.group_size = group_size
+
+        self._block_sums_bufs = [
+            old_buf if new_len == old_len else cl.Buffer(
+            ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
+            new_len * self.block_sums_dtype.itemsize
+            ) for new_len, old_len, old_buf in
+            zip_longest(self.block_lengths, old_block_lengths, self._block_sums_bufs)
+            if new_len is not None
+        ]
 
     @property
     def block_lengths(self):

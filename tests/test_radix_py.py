@@ -32,6 +32,15 @@ def test_scanner_errs(cl_scan, size, group_size):
     with pytest.raises(ValueError):
         PrefixScanner(program, size, group_size)
 
+@pytest.mark.parametrize("old_shape,new_shape", [
+    ((1024, 4), (1023, 4)),
+])
+def test_scanner_resize_errs(cl_scan, old_shape, new_shape):
+    ctx, cq, program = cl_scan
+    scanner = PrefixScanner(program, *old_shape)
+    with pytest.raises(ValueError):
+        scanner.resize(*new_shape)
+
 @pytest.mark.parametrize("size,group_size,expected", [
     (1024, 4, (128, 16, 2)),
     (20, 2, (8, 2)),
@@ -53,7 +62,35 @@ def test_prefix_sum(cl_env, size, group_size):
 
     values = np.random.randint(0, size, size=size, dtype='uint32')
     values_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
+        ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
+    )
+    calc_scan = scanner.prefix_sum(cq, values_buf)
+
+    expected = np.cumsum(values)
+    (values_map, _) = cl.enqueue_map_buffer(
+        cq, values_buf, cl.map_flags.READ,
+        0, values.shape, values.dtype,
+        wait_for=[calc_scan], is_blocking=True
+    )
+    assert values_map[0] == 0
+    np.testing.assert_equal(values_map[1:], expected[:-1])
+
+@pytest.mark.parametrize("old_shape,new_shape", [
+    ((20, 2), (24, 4)),
+    ((1024, 4), (160, 4)),
+    ((24, 2), (None, 4)),
+    ((160, 4), (1024, None)),
+])
+def test_scanner_resized(cl_env, old_shape, new_shape):
+    ctx, cq = cl_env
+    program = PrefixScanProgram(ctx)
+    scanner = PrefixScanner(program, *old_shape)
+    scanner.resize(*new_shape)
+
+    size = new_shape[0] or old_shape[0]
+    values = np.random.randint(0, 100, size=size, dtype='uint32')
+    values_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
     )
     calc_scan = scanner.prefix_sum(cq, values_buf)
 
@@ -71,7 +108,6 @@ def test_sorter_errs(cl_sort, size, ngroups, group_size, bits):
     ctx, cq, program, scan_program = cl_sort
     with pytest.raises(ValueError):
         sorter = RadixSorter(program, size, ngroups, group_size, bits, scan_program)
-
 
 @pytest.mark.parametrize("bits,expected", [(1, 32), (2, 16), (4, 8), (8, 4)])
 def test_num_passes(cl_sort, bits, expected):
