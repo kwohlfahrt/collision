@@ -2,6 +2,7 @@ import numpy as np
 import pyopencl as cl
 import pytest
 from radix import RadixProgram, PrefixScanProgram
+from reduce import ReductionProgram
 from collision import *
 
 @pytest.fixture(scope='module')
@@ -16,7 +17,8 @@ def cl_collision(cl_env):
     program = CollisionProgram(ctx)
     radix_program = RadixProgram(ctx)
     scan_program = PrefixScanProgram(ctx)
-    return ctx, cq, program, (radix_program, scan_program)
+    reducer_program = ReductionProgram(ctx)
+    return ctx, cq, program, (radix_program, scan_program), reducer_program
 
 def find_collisions(coords, radii):
     min_bounds = coords - radii.reshape(-1, 1)
@@ -28,7 +30,7 @@ def find_collisions(coords, radii):
     return set(zip(*reversed(np.nonzero(collisions))))
 
 def test_collision(cl_collision):
-    ctx, cq, program, sorter_programs = cl_collision
+    ctx, cq, program, sorter_programs, reducer_program = cl_collision
 
     coords = np.array([[ 0.0, 1.0, 3.0],
                        [ 0.0, 1.0, 3.0],
@@ -39,14 +41,11 @@ def test_collision(cl_collision):
     radii = np.ones(len(coords), dtype='float32')
     expected = {(0, 1), (4, 5)}
 
-    collider = Collider(ctx, len(coords), (3, 2), program, sorter_programs)
+    collider = Collider(ctx, len(coords), (3, 2), program,
+                        sorter_programs, reducer_program)
 
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
-    )
-    range_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
     )
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
@@ -55,8 +54,7 @@ def test_collision(cl_collision):
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, range_buf,
-                                collisions_buf, len(expected))
+    n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
     assert n == len(expected)
 
     (collisions_map, _) = cl.enqueue_map_buffer(
@@ -69,8 +67,9 @@ def test_collision(cl_collision):
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
                                                (100,(5,4)), (256,(4,32))])
 def test_random_collision(cl_collision, size, sorter_shape):
-    ctx, cq, program, sorter_programs = cl_collision
-    collider = Collider(ctx, size, sorter_shape, program, sorter_programs)
+    ctx, cq, program, sorter_programs, reducer_program = cl_collision
+    collider = Collider(ctx, size, sorter_shape, program,
+                        sorter_programs, reducer_program)
 
     np.random.seed(4)
     coords = np.random.random((size, 3)).astype(collider.coord_dtype)
@@ -81,10 +80,6 @@ def test_random_collision(cl_collision, size, sorter_shape):
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
     )
-    range_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
-    )
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -92,8 +87,7 @@ def test_random_collision(cl_collision, size, sorter_shape):
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, range_buf,
-                                collisions_buf, len(expected))
+    n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
     assert n == len(expected)
 
     (collisions_map, _) = cl.enqueue_map_buffer(
@@ -109,10 +103,11 @@ def test_random_collision(cl_collision, size, sorter_shape):
 
 @pytest.mark.parametrize("old_shape,new_shape", [((5,(5,1)), (20,(5,4)))])
 def test_random_collision_resized(cl_collision, old_shape, new_shape):
-    ctx, cq, program, sorter_programs = cl_collision
+    ctx, cq, program, sorter_programs, reducer_program = cl_collision
 
     collider = Collider(ctx, *old_shape, program=program,
-                        sorter_programs=sorter_programs)
+                        sorter_programs=sorter_programs,
+                        reducer_program=reducer_program)
     collider.resize(*new_shape)
 
     np.random.seed(4)
@@ -125,10 +120,6 @@ def test_random_collision_resized(cl_collision, old_shape, new_shape):
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
     )
-    range_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
-    )
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -136,8 +127,7 @@ def test_random_collision_resized(cl_collision, old_shape, new_shape):
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, range_buf,
-                                collisions_buf, len(expected))
+    n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
     assert n == len(expected)
 
     (collisions_map, _) = cl.enqueue_map_buffer(
@@ -166,10 +156,6 @@ def test_auto_program(cl_env, size, sorter_shape):
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
     )
-    range_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
-    )
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -177,7 +163,7 @@ def test_auto_program(cl_env, size, sorter_shape):
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, range_buf,
+    n = collider.get_collisions(cq, coords_buf, radii_buf,
                                 collisions_buf, len(expected))
     assert n == len(expected)
 

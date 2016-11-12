@@ -4,6 +4,7 @@ from itertools import accumulate, chain, tee
 import pyopencl as cl
 from misc import Program
 from radix import RadixSorter
+from reduce import Reducer
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
@@ -24,12 +25,13 @@ class Collider:
     id_dtype = dtype('uint32')
 
     def __init__(self, ctx, size, sorter_shape, program=None,
-                 sorter_programs=(None, None)):
+                 sorter_programs=(None, None), reducer_program=None):
         self.size = size
 
         self.sorter = RadixSorter(ctx, size, *sorter_shape,
                                   program=sorter_programs[0],
                                   scan_program=sorter_programs[1])
+        self.reducer = Reducer(ctx, *sorter_shape, program=reducer_program)
         if program is None:
             program = CollisionProgram(ctx)
         elif program.context != ctx:
@@ -50,6 +52,7 @@ class Collider:
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.n_nodes * Node.itemsize
         )
+        # Dual-use: storing per-node and scene bounds
         self._bounds_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.n_nodes * 2 * 3 * self.coord_dtype.itemsize
@@ -66,6 +69,7 @@ class Collider:
     def resize(self, size=None, sorter_shape=(None, None, None)):
         ctx = self.program.context
         self.sorter.resize(size, *sorter_shape)
+        self.reducer.resize(*sorter_shape[:2])
         old_size = self.size
         self.size = size
 
@@ -96,8 +100,8 @@ class Collider:
     def n_nodes(self):
         return self.size * 2 - 1
 
-    def get_collisions(self, cq, coords_buf, radii_buf, range_buf,
-                       collisions_buf, n_collisions, wait_for=None):
+    def get_collisions(self, cq, coords_buf, radii_buf, collisions_buf,
+                       n_collisions, wait_for=None):
         fill_ids = self.program.kernels['range'](
             cq, (self.size,), None,
             self._ids_bufs[0]
@@ -110,9 +114,13 @@ class Collider:
             cq, self._n_collisions_buf, zeros(1, dtype='uint64'),
             0, self.counter_dtype.itemsize
         )
+
+        calc_scene_bounds = self.reducer.reduce(cq, self.size, coords_buf, self._bounds_buf)
+
         calc_codes = self.program.kernels['calculateCodes'](
             cq, (self.size,), None,
-            self._codes_bufs[0], coords_buf, range_buf,
+            self._codes_bufs[0], coords_buf, self._bounds_buf,
+            wait_for=[calc_scene_bounds]
         )
 
         self.sorter.sort(cq, *self._codes_bufs, *self._ids_bufs)
