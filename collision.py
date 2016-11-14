@@ -1,9 +1,9 @@
-from numpy import dtype, zeros
+from numpy import dtype, zeros, array
 from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
 from misc import Program
-from radix import RadixSorter
+from radix import RadixSorter, roundUp
 from reduce import Reducer
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
@@ -28,7 +28,9 @@ class Collider:
                  sorter_programs=(None, None), reducer_program=None):
         self.size = size
 
-        self.sorter = RadixSorter(ctx, size, *sorter_shape,
+        # self.padded size not available before sorter creation
+        padded_size = roundUp(size, sorter_shape[0] * sorter_shape[1])
+        self.sorter = RadixSorter(ctx, padded_size, *sorter_shape,
                                   program=sorter_programs[0],
                                   scan_program=sorter_programs[1])
         self.reducer = Reducer(ctx, *sorter_shape, program=reducer_program)
@@ -41,11 +43,11 @@ class Collider:
         # Can't sort in-place
         self._ids_bufs = [cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-            self.size * self.id_dtype.itemsize
+            self.padded_size * self.id_dtype.itemsize
         ) for _ in range(2)]
         self._codes_bufs = [cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-            self.size * self.code_dtype.itemsize
+            self.padded_size * self.code_dtype.itemsize
         ) for _ in range(2)]
 
         self._nodes_buf = cl.Buffer(
@@ -68,21 +70,23 @@ class Collider:
 
     def resize(self, size=None, sorter_shape=(None, None, None)):
         ctx = self.program.context
+        old_padded_size = self.padded_size
+        old_n_nodes = self.n_nodes
         self.sorter.resize(size, *sorter_shape)
         self.reducer.resize(*sorter_shape[:2])
-        old_size = self.size
         self.size = size
 
-        if old_size != size:
+        if old_padded_size != self.padded_size:
             self._ids_bufs = [cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-                self.size * self.id_dtype.itemsize
+                self.padded_size * self.id_dtype.itemsize
             ) for _ in range(2)]
             self._codes_bufs = [cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-                self.size * self.code_dtype.itemsize
+                self.padded_size * self.code_dtype.itemsize
             ) for _ in range(2)]
 
+        if old_n_nodes != self.n_nodes:
             self._nodes_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
                 self.n_nodes * Node.itemsize
@@ -100,11 +104,21 @@ class Collider:
     def n_nodes(self):
         return self.size * 2 - 1
 
+    @property
+    def padded_size(self):
+        return roundUp(self.size, self.sorter.ngroups * self.sorter.group_size)
+
     def get_collisions(self, cq, coords_buf, radii_buf, collisions_buf,
                        n_collisions, wait_for=None):
         if wait_for is None:
             wait_for = []
 
+        fill_codes = []
+        if self.padded_size != self.size:
+            fill_codes.append(cl.enqueue_fill_buffer(
+                cq, self._codes_bufs[0], array([-1], dtype='uint32'),
+                0, self.padded_size * self.code_dtype.itemsize
+            ))
         fill_ids = self.program.kernels['range'](
             cq, (self.size,), None,
             self._ids_bufs[0]
@@ -123,7 +137,7 @@ class Collider:
         calc_codes = self.program.kernels['calculateCodes'](
             cq, (self.size,), None,
             self._codes_bufs[0], coords_buf, self._bounds_buf,
-            wait_for=[calc_scene_bounds]
+            wait_for=[calc_scene_bounds] + fill_codes
         )
 
         self.sorter.sort(cq, *self._codes_bufs, *self._ids_bufs)

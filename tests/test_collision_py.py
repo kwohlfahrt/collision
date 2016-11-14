@@ -29,6 +29,17 @@ def find_collisions(coords, radii):
     collisions = np.triu(collisions, 1)
     return set(zip(*reversed(np.nonzero(collisions))))
 
+@pytest.mark.parametrize("size,sorter_shape,expected", [
+    (24, (3,8), 24), (23, (3,8), 24), (25, (3,8), 48)
+])
+def test_padded_size(cl_collision, size, sorter_shape, expected):
+    ctx, cq, program, sorter_programs, reducer_program = cl_collision
+
+    collider = Collider(ctx, size, sorter_shape, program,
+                        sorter_programs, reducer_program)
+
+    assert collider.padded_size == expected
+
 def test_collision(cl_collision):
     ctx, cq, program, sorter_programs, reducer_program = cl_collision
 
@@ -65,7 +76,8 @@ def test_collision(cl_collision):
     assert set(map(tuple, collisions_map)) == expected
 
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
-                                               (100,(5,4)), (256,(4,32))])
+                                               (100,(5,4)), (256,(4,32)),
+                                               (317, (4, 16))])
 def test_random_collision(cl_collision, size, sorter_shape):
     ctx, cq, program, sorter_programs, reducer_program = cl_collision
     collider = Collider(ctx, size, sorter_shape, program,
