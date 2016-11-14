@@ -102,6 +102,9 @@ class Collider:
 
     def get_collisions(self, cq, coords_buf, radii_buf, collisions_buf,
                        n_collisions, wait_for=None):
+        if wait_for is None:
+            wait_for = []
+
         fill_ids = self.program.kernels['range'](
             cq, (self.size,), None,
             self._ids_bufs[0]
@@ -143,7 +146,7 @@ class Collider:
             cq, (self.size,), None,
             collisions_buf, self._n_collisions_buf, n_collisions,
             self._nodes_buf, self._bounds_buf,
-            wait_for=[clear_n_collisions, calc_bounds],
+            wait_for=[clear_n_collisions, calc_bounds] + wait_for,
         )
 
         (n_collisions_map, _) = cl.enqueue_map_buffer(
