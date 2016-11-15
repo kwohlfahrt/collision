@@ -128,6 +128,8 @@ class Collider:
                        n_collisions, wait_for=None):
         if wait_for is None:
             wait_for = []
+        if collisions_buf is None and n_collisions > 0:
+            raise ValueError("Invalid collisions_buf for n_collisions > 0")
 
         fill_codes = []
         if self.padded_size != self.size:
@@ -148,7 +150,9 @@ class Collider:
             0, self.counter_dtype.itemsize
         )
 
-        calc_scene_bounds = self.reducer.reduce(cq, self.size, coords_buf, self._bounds_buf)
+        # Wait here, as first use of external buffer
+        calc_scene_bounds = self.reducer.reduce(cq, self.size, coords_buf, self._bounds_buf,
+                                                wait_for=wait_for)
 
         calc_codes = self.program.kernels['calculateCodes'](
             cq, (self.size,), None,
@@ -156,27 +160,29 @@ class Collider:
             wait_for=[calc_scene_bounds] + fill_codes
         )
 
-        self.sorter.sort(cq, *self._codes_bufs, *self._ids_bufs)
+        sort_codes = self.sorter.sort(cq, *self._codes_bufs, *self._ids_bufs,
+                                      wait_for=[calc_codes, fill_ids])
 
         fill_internal = self.program.kernels['fillInternal'](
             cq, (self.size,), None,
-            self._nodes_buf, self._ids_bufs[1]
+            self._nodes_buf, self._ids_bufs[1],
+            wait_for=[sort_codes]
         )
         generate_bvh = self.program.kernels['generateBVH'](
             cq, (self.size-1,), None,
             self._codes_bufs[1], self._nodes_buf,
-            wait_for=[calc_codes, fill_internal]
+            wait_for=[sort_codes]
         )
         calc_bounds = self.program.kernels['generateBounds'](
             cq, (self.size,), None,
             self._bounds_buf, self._flags_buf, coords_buf, radii_buf, self._nodes_buf,
-            wait_for=[clear_flags, generate_bvh]
+            wait_for=[clear_flags, fill_internal, generate_bvh]
         )
         find_collisions = self.program.kernels['traverse'](
             cq, (self.size,), None,
             collisions_buf, self._n_collisions_buf, n_collisions,
             self._nodes_buf, self._bounds_buf,
-            wait_for=[clear_n_collisions, calc_bounds] + wait_for,
+            wait_for=[clear_n_collisions, calc_bounds],
         )
 
         (n_collisions_map, _) = cl.enqueue_map_buffer(

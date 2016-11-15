@@ -12,7 +12,8 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture(scope='module')
 def cl_env():
     ctx = cl.create_some_context()
-    cq = cl.CommandQueue(ctx)
+    properties = cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
+    cq = cl.CommandQueue(ctx, properties=properties)
     return ctx, cq
 
 @pytest.fixture(scope='module')
@@ -186,3 +187,46 @@ def test_auto_program(cl_env, coord_dtype, size, sorter_shape):
     # Need to test both directions, order is not clear from tree
     assert (collisions | set(map(tuple, map(reversed, collisions))) ==
             expected | set(map(tuple, map(reversed, expected))))
+
+
+@pytest.mark.parametrize("size,sorter_shape", [(100,(5,4))])
+def test_count_only(cl_env, coord_dtype, collision_programs, size, sorter_shape):
+    ctx, cq = cl_env
+    collider = Collider(ctx, size, sorter_shape, coord_dtype, *collision_programs)
+
+    np.random.seed(4)
+    coords = np.random.random((size, 3)).astype(coord_dtype)
+    radius = 1 / (size ** 0.5) # Keep number of collisions under control
+    radii = np.random.uniform(0, radius, len(coords)).astype(coord_dtype)
+    expected = find_collisions(coords, radii)
+
+    coords_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+    )
+    radii_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
+    )
+
+    n = collider.get_collisions(cq, coords_buf, radii_buf, None, 0)
+    assert n == len(expected)
+
+@pytest.mark.parametrize("size,sorter_shape", [(100,(5,4))])
+def test_count_err(cl_env, coord_dtype, collision_programs, size, sorter_shape):
+    ctx, cq = cl_env
+    collider = Collider(ctx, size, sorter_shape, coord_dtype, *collision_programs)
+
+    np.random.seed(4)
+    coords = np.random.random((size, 3)).astype(coord_dtype)
+    radius = 1 / (size ** 0.5) # Keep number of collisions under control
+    radii = np.random.uniform(0, radius, len(coords)).astype(coord_dtype)
+    expected = find_collisions(coords, radii)
+
+    coords_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+    )
+    radii_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
+    )
+
+    with pytest.raises(ValueError):
+        n = collider.get_collisions(cq, coords_buf, radii_buf, None, len(expected))
