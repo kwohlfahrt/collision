@@ -13,14 +13,23 @@ kernel_args = {'generateBVH': None,
                'calculateCodes': None,
                'traverse': [None, None, np.dtype('uint64'), None, None],}
 
+
+def pytest_generate_tests(metafunc):
+    if 'coord_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
+
+
 @pytest.fixture(scope='module')
-def cl_kernels():
+def cl_kernels(coord_dtype):
     ctx = cl.create_some_context()
     cq = cl.CommandQueue(ctx)
 
+    c_dtypes = {'float32': 'float', 'float64': 'double'}
+    buildopts = ["-D DTYPE={}".format(c_dtypes[coord_dtype])]
+
     src = Path(__file__).parent / ".." / "collision.cl"
     with src.open("r") as f:
-        program = cl.Program(ctx, f.read()).build()
+        program = cl.Program(ctx, f.read()).build(buildopts)
         kernels = {name: getattr(program, name) for name in kernel_args}
         for name, kernel in kernels.items():
             arg_types = kernel_args[name]
@@ -162,14 +171,14 @@ def test_generate_odd_bvh(cl_kernels):
     np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes)))
 
 
-def test_compute_bounds(cl_kernels):
+def test_compute_bounds(cl_kernels, coord_dtype):
     ctx, cq, kernels = cl_kernels
 
     coords = np.array([[ 0.0, 1.0, 3.0],
                        [ 4.0, 1.0, 8.0],
                        [-4.0,-6.0, 3.0],
-                       [-5.0, 0.0,-1.0]], dtype='float32')
-    radii = np.ones(len(coords), dtype='float32')
+                       [-5.0, 0.0,-1.0]], dtype=coord_dtype)
+    radii = np.ones(len(coords), dtype=coord_dtype)
     leaf = len(coords) - 1
     nodes = np.array([(-1, 3, [leaf+0, 1]),
                       ( 0, 3, [leaf+3, 2]),
@@ -189,7 +198,7 @@ def test_compute_bounds(cl_kernels):
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=nodes
     )
     bounds_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_WRITE, len(nodes) * 3 * 2 * np.dtype('float32').itemsize
+        ctx, cl.mem_flags.READ_WRITE, len(nodes) * 3 * 2 * coords.dtype.itemsize
     )
     flags_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, len(nodes) * np.dtype('uint32').itemsize
@@ -206,7 +215,7 @@ def test_compute_bounds(cl_kernels):
     )
     (bounds_map, _) = cl.enqueue_map_buffer(
         cq, bounds_buf, cl.map_flags.READ,
-        0, (len(nodes), 2, 3), np.dtype('float32'),
+        0, (len(nodes), 2, 3), coord_dtype,
         wait_for=[calc_bounds], is_blocking=True
     )
 
@@ -216,11 +225,11 @@ def test_compute_bounds(cl_kernels):
                          [[-5.0,-7.0, 2.0], [-3.0,-5.0, 4.0]],
                          [[-1.0, 0.0, 2.0], [ 1.0, 2.0, 4.0]],
                          [[ 3.0, 0.0, 7.0], [ 5.0, 2.0, 9.0]],
-                         [[-6.0,-1.0,-2.0], [-4.0, 1.0, 0.0]]], dtype='float32')
+                         [[-6.0,-1.0,-2.0], [-4.0, 1.0, 0.0]]], dtype=coord_dtype)
     np.testing.assert_equal(bounds_map, expected)
 
 
-def test_traverse(cl_kernels):
+def test_traverse(cl_kernels, coord_dtype):
     ctx, cq, kernels = cl_kernels
 
     coords = np.array([[ 0.0, 1.0, 3.0],
@@ -228,8 +237,8 @@ def test_traverse(cl_kernels):
                        [ 4.0, 1.0, 8.0],
                        [-4.0,-6.0, 3.0],
                        [-5.0, 0.0,-1.0],
-                       [-5.0, 0.5,-0.5]], dtype='float32')
-    radii = np.ones(len(coords), dtype='float32')
+                       [-5.0, 0.5,-0.5]], dtype=coord_dtype)
+    radii = np.ones(len(coords), dtype=coord_dtype)
     n_nodes = len(coords) * 2 - 1
 
     coords_buf = cl.Buffer(
@@ -249,7 +258,7 @@ def test_traverse(cl_kernels):
         ctx, cl.mem_flags.READ_WRITE, n_nodes * Node.itemsize
     )
     bounds_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_WRITE, n_nodes * 3 * 2 * np.dtype('float32').itemsize
+        ctx, cl.mem_flags.READ_WRITE, n_nodes * 3 * 2 * coords.dtype.itemsize
     )
     flags_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, n_nodes * np.dtype('uint32').itemsize

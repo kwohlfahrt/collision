@@ -17,15 +17,27 @@ class CollisionProgram(Program):
                    'generateBounds': [None, None, None, None, None],
                    'traverse': [None, None, dtype('uint64'), None, None]}
 
+    def __init__(self, ctx, coord_dtype=dtype('float32')):
+        coord_dtype = dtype(coord_dtype)
+        if coord_dtype == dtype('float32'):
+            def_dtype = 'float'
+        elif coord_dtype == dtype('float64'):
+            def_dtype = 'double'
+        else:
+            raise ValueError("Invalid dtype: {}".format(coord_dtype))
+        self.coord_dtype = coord_dtype
+
+        super().__init__(ctx, ["-D DTYPE={}".format(def_dtype)])
+
+
 class Collider:
     code_dtype = dtype('uint32')
-    coord_dtype = dtype('float32')
     flag_dtype = dtype('uint32') # Smallest atomic
     counter_dtype = dtype('uint64')
     id_dtype = dtype('uint32')
 
-    def __init__(self, ctx, size, sorter_shape, program=None,
-                 sorter_programs=(None, None), reducer_program=None):
+    def __init__(self, ctx, size, sorter_shape, coord_dtype=dtype('float32'),
+                 program=None, sorter_programs=(None, None), reducer_program=None):
         self.size = size
 
         # self.padded size not available before sorter creation
@@ -33,11 +45,15 @@ class Collider:
         self.sorter = RadixSorter(ctx, padded_size, *sorter_shape,
                                   program=sorter_programs[0],
                                   scan_program=sorter_programs[1])
-        self.reducer = Reducer(ctx, *sorter_shape, program=reducer_program)
+        self.reducer = Reducer(ctx, *sorter_shape, coord_dtype=coord_dtype,
+                               program=reducer_program)
         if program is None:
             program = CollisionProgram(ctx)
-        elif program.context != ctx:
-            raise ValueError("Collider and program context must match")
+        else:
+            if program.context != ctx:
+                raise ValueError("Collider and program context must match")
+            if program.coord_dtype != coord_dtype:
+                raise ValueError("Collider and program coord_dtype must match")
         self.program = program
 
         # Can't sort in-place
@@ -57,7 +73,7 @@ class Collider:
         # Dual-use: storing per-node and scene bounds
         self._bounds_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-            self.n_nodes * 2 * 3 * self.coord_dtype.itemsize
+            self.n_nodes * 2 * 3 * self.program.coord_dtype.itemsize
         )
         self._flags_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
@@ -93,7 +109,7 @@ class Collider:
             )
             self._bounds_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-                self.n_nodes * 2 * 3 * self.coord_dtype.itemsize
+                self.n_nodes * 2 * 3 * self.program.coord_dtype.itemsize
             )
             self._flags_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
@@ -116,7 +132,7 @@ class Collider:
         fill_codes = []
         if self.padded_size != self.size:
             fill_codes.append(cl.enqueue_fill_buffer(
-                cq, self._codes_bufs[0], array([-1], dtype='uint32'),
+                cq, self._codes_bufs[0], array([-1], dtype=self.code_dtype),
                 0, self.padded_size * self.code_dtype.itemsize
             ))
         fill_ids = self.program.kernels['range'](
@@ -124,11 +140,11 @@ class Collider:
             self._ids_bufs[0]
         )
         clear_flags = cl.enqueue_fill_buffer(
-            cq, self._flags_buf, zeros(1, dtype='uint32'),
+            cq, self._flags_buf, zeros(1, dtype=self.flag_dtype),
             0, self.n_nodes * self.flag_dtype.itemsize
         )
         clear_n_collisions = cl.enqueue_fill_buffer(
-            cq, self._n_collisions_buf, zeros(1, dtype='uint64'),
+            cq, self._n_collisions_buf, zeros(1, dtype=self.counter_dtype),
             0, self.counter_dtype.itemsize
         )
 

@@ -1,11 +1,11 @@
 // http://developer.amd.com/resources/articles-whitepapers/opencl-optimization-case-study-simple-reductions/
 constant size_t D = 3;
 
-kernel void bounds1(const global float * const coords,
+kernel void bounds1(const global DTYPE * const coords,
                     const unsigned long n,
-                    global float * const group_bounds,
-                    local float * const scratch) {
-    float accumulator[2][3] = {{INFINITY, INFINITY, INFINITY},
+                    global DTYPE * const group_bounds,
+                    local DTYPE * const scratch) {
+    DTYPE accumulator[2][3] = {{INFINITY, INFINITY, INFINITY},
                                {0, 0, 0}};
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
         for (size_t d = 0; d < D; d++) {
@@ -38,8 +38,8 @@ kernel void bounds1(const global float * const coords,
         }
 }
 
-kernel void bounds2(global float * const group_bounds,
-                    global float * const output) {
+kernel void bounds2(global DTYPE * const group_bounds,
+                    global DTYPE * const output) {
     for (size_t o = get_local_size(0) / 2; o > 0; o /= 2) {
         if (get_local_id(0) < o) {
             for (size_t d = 0; d < D; d++) {

@@ -1,10 +1,16 @@
 // https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-i-collision-detection-gpu/
 
+#define CAT_HELPER(X,Y) X##Y
+#define CAT(X,Y) CAT_HELPER(X,Y)
+
+#define VTYPE CAT(DTYPE,3)
+
 kernel void range(global unsigned int * const idxs) {
     idxs[get_global_id(0)] = get_global_id(0);
 }
 
 // Interleaves bits with 2 zero bits
+// TODO: Expand for long
 unsigned int expandBits(unsigned int v) {
     v = (v * 0x00010001u) & 0xFF0000FFu;
     v = (v * 0x00000101u) & 0x0F00F00Fu;
@@ -13,21 +19,22 @@ unsigned int expandBits(unsigned int v) {
     return v;
 }
 
-unsigned int morton(float3 pos, const float3 min, const float3 max) {
-    float3 norm_pos = (pos - min) / (max - min);
-    float3 pos_10bit = clamp(pos * 1023.0f, 0.0f, 1023.0f);
+unsigned int morton(VTYPE pos, const VTYPE min, const VTYPE max) {
+    VTYPE norm_pos = (pos - min) / (max - min);
+    DTYPE scale = (1 << (sizeof(unsigned int) * 8 / 3)) - 1;
+    VTYPE pos_scaled = clamp(pos * scale, 0.0f, scale);
 
-    unsigned int xx = expandBits((unsigned int) pos_10bit.x);
-    unsigned int yy = expandBits((unsigned int) pos_10bit.y);
-    unsigned int zz = expandBits((unsigned int) pos_10bit.z);
+    unsigned int xx = expandBits((unsigned int) pos_scaled.x);
+    unsigned int yy = expandBits((unsigned int) pos_scaled.y);
+    unsigned int zz = expandBits((unsigned int) pos_scaled.z);
     return (xx << 2) + (yy << 1) + zz;
 }
 
 kernel void calculateCodes(global unsigned int * const codes,
-                           const global float * const coords,
-                           const global float * const range) {
-    const float3 min = vload3(0, range);
-    const float3 max = vload3(1, range);
+                           const global DTYPE * const coords,
+                           const global DTYPE * const range) {
+    const VTYPE min = vload3(0, range);
+    const VTYPE max = vload3(1, range);
     codes[get_global_id(0)] = morton(vload3(get_global_id(0), coords), min, max);
 }
 
@@ -140,14 +147,14 @@ kernel void generateBVH(const global unsigned int * const codes,
 }
 
 struct Bound {
-    float min[3];
-    float max[3];
+    DTYPE min[3];
+    DTYPE max[3];
 } __attribute__((packed));
 
 kernel void generateBounds(global struct Bound * const bounds,
                            global unsigned int * const flags,
-                           const global float * const coords,
-                           const global float * const radii,
+                           const global DTYPE * const coords,
+                           const global DTYPE * const radii,
                            const global struct Node * const nodes) {
     const unsigned int n = get_global_size(0);
     const size_t D = 3;

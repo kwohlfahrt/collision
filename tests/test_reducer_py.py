@@ -3,19 +3,23 @@ import pyopencl as cl
 import pytest
 from reduce import *
 
+def pytest_generate_tests(metafunc):
+    if 'coord_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
+
 @pytest.fixture(scope='module')
-def cl_reduce():
+def cl_reduce(coord_dtype):
     ctx = cl.create_some_context()
     cq = cl.CommandQueue(ctx)
-    program = ReductionProgram(ctx)
+    program = ReductionProgram(ctx, coord_dtype)
     return ctx, cq, program
 
 @pytest.mark.parametrize("size,ngroups,group_size", [(24,2,4), (100, 4, 8)])
-def test_bounds(cl_reduce, size, ngroups, group_size):
+def test_bounds(cl_reduce, coord_dtype, size, ngroups, group_size):
     ctx, cq, program = cl_reduce
 
-    reducer = Reducer(ctx, ngroups, group_size, program)
-    values = np.random.normal(size=(size, 3)).astype(reducer.value_dtype)
+    reducer = Reducer(ctx, ngroups, group_size, coord_dtype, program)
+    values = np.random.normal(size=(size, 3)).astype(coord_dtype)
 
     values_buf = cl.Buffer(
         ctx, cl.mem_flags.HOST_READ_ONLY | cl.mem_flags.READ_ONLY |
@@ -23,13 +27,13 @@ def test_bounds(cl_reduce, size, ngroups, group_size):
     )
     out_buf = cl.Buffer(
         ctx, cl.mem_flags.HOST_READ_ONLY | cl.mem_flags.WRITE_ONLY,
-        2 * 3 * reducer.value_dtype.itemsize
+        2 * 3 * values.dtype.itemsize
     )
 
     calc_reduce = reducer.reduce(cq, len(values), values_buf, out_buf)
     (out_buf, _) = cl.enqueue_map_buffer(
         cq, out_buf, cl.map_flags.READ,
-        0, (2, 3), reducer.value_dtype,
+        0, (2, 3), values.dtype,
         wait_for=[calc_reduce], is_blocking=True
     )
 
@@ -37,12 +41,12 @@ def test_bounds(cl_reduce, size, ngroups, group_size):
     np.testing.assert_equal(out_buf, expected)
 
 @pytest.mark.parametrize("size,old_shape,new_shape", [(100,(2,4),(4, 8))])
-def test_bounds_resized(cl_reduce, size, old_shape, new_shape):
+def test_bounds_resized(cl_reduce, coord_dtype, size, old_shape, new_shape):
     ctx, cq, program = cl_reduce
 
-    reducer = Reducer(ctx, *old_shape, program=program)
+    reducer = Reducer(ctx, *old_shape, coord_dtype, program=program)
     reducer.resize(*new_shape)
-    values = np.random.normal(size=(size, 3)).astype(reducer.value_dtype)
+    values = np.random.normal(size=(size, 3)).astype(coord_dtype)
 
     values_buf = cl.Buffer(
         ctx, cl.mem_flags.HOST_READ_ONLY | cl.mem_flags.READ_ONLY |
@@ -50,13 +54,13 @@ def test_bounds_resized(cl_reduce, size, old_shape, new_shape):
     )
     out_buf = cl.Buffer(
         ctx, cl.mem_flags.HOST_READ_ONLY | cl.mem_flags.WRITE_ONLY,
-        2 * 3 * reducer.value_dtype.itemsize
+        2 * 3 * values.dtype.itemsize
     )
 
     calc_reduce = reducer.reduce(cq, len(values), values_buf, out_buf)
     (out_buf, _) = cl.enqueue_map_buffer(
         cq, out_buf, cl.map_flags.READ,
-        0, (2, 3), reducer.value_dtype,
+        0, (2, 3), values.dtype,
         wait_for=[calc_reduce], is_blocking=True
     )
 

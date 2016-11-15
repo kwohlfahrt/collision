@@ -6,13 +6,6 @@ from itertools import product as cartesian
 
 np.random.seed(4)
 
-kernel_args = {'scan.cl': {'local_scan': [None, None],
-                           'block_scan': [None, None]},
-               'radix.cl': {'histogram': [None, None, np.dtype('int32'),
-                                          np.dtype('int8'), np.dtype('int8')],
-                            'scatter': [None, None, None, None, np.dtype('int32'),
-                                        None, np.dtype('int8'), np.dtype('int8')]}}
-
 def pytest_generate_tests(metafunc):
     if 'value_dtype' in metafunc.fixturenames:
         metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
