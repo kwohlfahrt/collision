@@ -11,7 +11,7 @@ def roundUp(x, base=1):
   return (x // base + bool(x % base)) * base
 
 class PrefixScanProgram(Program):
-    src = Path(__file__).parent / "radix.cl"
+    src = Path(__file__).parent / "scan.cl"
     kernel_args = {'local_scan': [None, None],
                    'block_scan': [None, None]}
 
@@ -121,40 +121,55 @@ class RadixProgram(Program):
                    'scatter': [None, None, None, None, dtype('int32'),
                                None, dtype('int8'), dtype('int8')],}
 
+    def __init__(self, ctx, value_dtype=dtype('uint32')):
+        value_dtype = dtype(value_dtype)
+        if value_dtype == dtype('uint32'):
+            def_dtype = "int"
+        elif value_dtype == dtype('uint64'):
+            def_dtype = "long"
+        else:
+            raise ValueError("Invalid dtype: {}".format(value_dtype))
+        self.value_dtype = value_dtype
+
+        super().__init__(ctx, ["-D DTYPE={}".format(def_dtype)])
+
 class RadixSorter:
-    value_dtype = dtype('uint32')
     histogram_dtype = dtype('uint32')
 
     def __init__(self, ctx, size, ngroups, group_size, radix_bits=4,
-                 program=None, scan_program=None):
-        self.check_size(size, ngroups, group_size, radix_bits)
+                 value_dtype=dtype('uint32'), program=None, scan_program=None):
+        value_dtype = dtype(value_dtype)
+        self.check_size(size, ngroups, group_size, radix_bits, value_dtype)
         self.size = size
         self.ngroups = ngroups
         self.group_size = group_size
         self.radix_bits = radix_bits
 
         if program is None:
-            program = RadixProgram(ctx)
-        elif program.context != ctx:
-            raise ValueError("Sorter and program contextx must match")
+            program = RadixProgram(ctx, value_dtype)
+        else:
+            if program.context != ctx:
+                raise ValueError("Sorter and program contexts must match")
+            if program.value_dtype != value_dtype:
+                raise ValueError("Sorter and program value dtypes must match")
+        self.program = program
         if scan_program is None:
             scan_program = PrefixScanProgram(ctx)
         self.scanner = PrefixScanner(ctx, self.histogram_len, self.group_size, scan_program)
-        self.program = program
 
         self._histogram_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.histogram_len * self.histogram_dtype.itemsize
         )
 
-    @classmethod
-    def check_size(cls, size, ngroups, group_size, radix_bits):
+    @staticmethod
+    def check_size(size, ngroups, group_size, radix_bits, value_dtype):
         if (size % (group_size * ngroups)):
             raise ValueError("Size ({}) must be multiple of group_size x ngroups ({} x {})"
                              .format(size, group_size, ngroups))
-        if (cls.value_dtype.itemsize * 8) % radix_bits:
+        if (value_dtype.itemsize * 8) % radix_bits:
             raise ValueError("Radix bits ({}) must evenly divide item-size ({})"
-                             .format(radix_bits, cls.value_dtype.itemsize))
+                             .format(radix_bits, value_dtype.itemsize))
 
     def resize(self, size=None, ngroups=None, group_size=None, radix_bits=None):
         ctx = self.program.context
@@ -169,7 +184,7 @@ class RadixSorter:
         old_histogram_len = self.histogram_len
         old_params = (self.size, self.ngroups, self.group_size, self.radix_bits)
 
-        self.check_size(size, ngroups, group_size, radix_bits)
+        self.check_size(size, ngroups, group_size, radix_bits, self.program.value_dtype)
 
         self.size = size
         self.ngroups = ngroups
@@ -190,7 +205,7 @@ class RadixSorter:
 
     @property
     def num_passes(self):
-        return (self.value_dtype.itemsize * 8) // self.radix_bits
+        return (self.program.value_dtype.itemsize * 8) // self.radix_bits
 
     @property
     def histogram_len(self):
@@ -217,14 +232,15 @@ class RadixSorter:
                 g_times_l=True, wait_for=[calc_scan]
             )
             fill_keys = cl.enqueue_copy(
-                cq, keys_buf, out_keys_buf, byte_count=self.size * self.value_dtype.itemsize,
+                cq, keys_buf, out_keys_buf,
+                byte_count=self.size * self.program.value_dtype.itemsize,
                 wait_for=[calc_scatter]
             )
             wait_for = [fill_keys]
             if in_values_buf is not None and out_values_buf is not None:
                 fill_values = cl.enqueue_copy(
                     cq, in_values_buf, out_values_buf,
-                    byte_count=self.size * self.value_dtype.itemsize,
+                    byte_count=self.size * self.program.value_dtype.itemsize,
                     wait_for=[calc_scatter]
                 )
                 wait_for.append(fill_values)
