@@ -216,7 +216,7 @@ kernel void traverse(global unsigned int * const collisions,
 
     unsigned int stack[64];
     unsigned char stack_ptr = 0;
-    stack[stack_ptr++] = UCHAR_MAX; // push NULL node (i.e. invalid node)
+    stack[stack_ptr++] = UINT_MAX; // push NULL node (i.e. invalid node)
 
     // Root node
     unsigned int idx = 0;
@@ -253,5 +253,5 @@ kernel void traverse(global unsigned int * const collisions,
             if (traverse_a && traverse_b)
                 stack[stack_ptr++] = child_b;
         }
-    } while (idx != UCHAR_MAX);
+    } while (idx != UINT_MAX);
 }

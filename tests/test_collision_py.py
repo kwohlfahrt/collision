@@ -84,7 +84,7 @@ def test_collision(cl_env, coord_dtype, collision_programs):
 
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
                                                (100,(5,4)), (256,(4,32)),
-                                               (317, (4, 16))])
+                                               (317, (4, 16)), (341, (4, 64))])
 def test_random_collision(cl_env, coord_dtype, collision_programs, size, sorter_shape):
     ctx, cq = cl_env
     collider = Collider(ctx, size, sorter_shape, coord_dtype, *collision_programs)
