@@ -9,6 +9,14 @@ def pytest_generate_tests(metafunc):
     if 'coord_dtype' in metafunc.fixturenames:
         metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
 
+
+@pytest.mark.parametrize("x", range(1, 10))
+def test_ceil_log2(x):
+    from math import log2, ceil
+    # Floating-point is OK for small x
+    assert ceil_log2(x) == ceil(log2(x))
+
+
 @pytest.fixture(scope='module')
 def cl_env():
     ctx = cl.create_some_context()

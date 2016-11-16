@@ -151,34 +151,50 @@ struct Bound {
     DTYPE max[3];
 } __attribute__((packed));
 
-kernel void generateBounds(global struct Bound * const bounds,
-                           global unsigned int * const flags,
-                           const global DTYPE * const coords,
-                           const global DTYPE * const radii,
-                           const global struct Node * const nodes) {
+kernel void leafBounds(global struct Bound * const bounds,
+                       const global DTYPE * const coords,
+                       const global DTYPE * const radii,
+                       const global struct Node * const nodes) {
     const unsigned int n = get_global_size(0);
-    const size_t D = 3;
     const size_t leaf_start = n - 1;
+    const size_t D = 3;
     size_t node_idx = leaf_start + get_global_id(0);
     const unsigned int coords_idx = nodes[node_idx].leaf.id;
     for (size_t d = 0; d < D; d++) {
         bounds[node_idx].min[d] = coords[coords_idx*D+d] - radii[coords_idx];
         bounds[node_idx].max[d] = coords[coords_idx*D+d] + radii[coords_idx];
     }
+}
 
-    do {
-        node_idx = nodes[node_idx].parent;
-        // Mark internal node as visited, and only process after children
-        if (atomic_inc(&flags[node_idx]) < 1)
+// Have to execute kernel for each depth due to lack of synchronization with CL < 2
+// For CL2+, remove check for depth <= level, only break on node_idx == 0 & flag < 1
+kernel void internalBounds(global struct Bound * const bounds,
+                           global unsigned int * const flags,
+                           const global struct Node * const nodes,
+                           const unsigned char level) {
+    const unsigned int n = get_global_size(0);
+    const size_t D = 3;
+    const size_t leaf_start = n - 1;
+    size_t node_idx = leaf_start + get_global_id(0);
+
+    for (unsigned char depth = 0; depth <= level; depth++) {
+        if (node_idx == 0) // Root node
             break;
+        node_idx = nodes[node_idx].parent;
+
+        // Mark node as visited (only on first visit per starting node)
+        unsigned int flag = atomic_add(&flags[node_idx], depth == level);
+        if (flag < 1) break; // Children not yet calculated
+        else if (flag == 2) continue; // Node already calculated
+
         const global unsigned int * child_idxs = nodes[node_idx].internal.children;
         for (size_t d = 0; d < D; d++) {
             bounds[node_idx].min[d] = min(bounds[child_idxs[0]].min[d],
                                           bounds[child_idxs[1]].min[d]);
             bounds[node_idx].max[d] = max(bounds[child_idxs[0]].max[d],
-                                           bounds[child_idxs[1]].max[d]);
+                                          bounds[child_idxs[1]].max[d]);
         }
-    } while (node_idx != 0);
+    }
 }
 
 bool checkOverlap(const struct Bound a, const struct Bound b) {
