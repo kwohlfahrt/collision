@@ -24,6 +24,7 @@ def cl_env():
     cq = cl.CommandQueue(ctx, properties=properties)
     return ctx, cq
 
+
 @pytest.fixture(scope='module')
 def collision_programs(cl_env, coord_dtype):
     ctx, cq = cl_env
@@ -33,14 +34,16 @@ def collision_programs(cl_env, coord_dtype):
     reducer_program = ReductionProgram(ctx, coord_dtype)
     return program, (radix_program, scan_program), reducer_program
 
+
 def find_collisions(coords, radii):
     min_bounds = coords - radii.reshape(-1, 1)
     max_bounds = coords + radii.reshape(-1, 1)
     collisions = ((max_bounds.reshape(-1, 1, 3) > min_bounds.reshape(1, -1, 3)) &
                   (min_bounds.reshape(-1, 1, 3) < max_bounds.reshape(1, -1, 3)))
     collisions = collisions.all(axis=-1)
-    collisions = np.triu(collisions, 1)
+    collisions = np.tril(collisions, -1)
     return set(zip(*reversed(np.nonzero(collisions))))
+
 
 @pytest.mark.parametrize("size,sorter_shape,expected", [
     (24, (3,8), 24), (23, (3,8), 24), (25, (3,8), 48)
@@ -49,6 +52,7 @@ def test_padded_size(cl_env, collision_programs, coord_dtype, size, sorter_shape
     ctx, cq = cl_env
     collider = Collider(ctx, size, sorter_shape, coord_dtype, *collision_programs)
     assert collider.padded_size == expected
+
 
 def test_collision(cl_env, coord_dtype, collision_programs):
     ctx, cq = cl_env
@@ -84,6 +88,7 @@ def test_collision(cl_env, coord_dtype, collision_programs):
     )
     assert set(map(tuple, collisions_map)) == expected
 
+
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
                                                (100,(5,4)), (256,(4,32)),
                                                (317, (4, 16))])
@@ -108,18 +113,15 @@ def test_random_collision(cl_env, coord_dtype, collision_programs, size, sorter_
     )
 
     n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
-    assert n == len(expected)
-
     (collisions_map, _) = cl.enqueue_map_buffer(
         cq, collisions_buf, cl.map_flags.READ,
         0, (n, 2), collider.id_dtype,
         is_blocking=True
     )
-    collisions = set(map(tuple, collisions_map))
+    # Need to sort, order is undefined
+    collisions = set(map(tuple, np.sort(collisions_map, axis=1)))
+    assert collisions == expected
 
-    # Need to test both directions, order is not clear from tree
-    assert (collisions | set(map(tuple, map(reversed, collisions))) ==
-            expected | set(map(tuple, map(reversed, expected))))
 
 @pytest.mark.parametrize("old_shape,new_shape", [((5,(5,1)), (20,(5,4)))])
 def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_shape, new_shape):
@@ -153,11 +155,9 @@ def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_s
         0, (n, 2), collider.id_dtype,
         is_blocking=True
     )
-    collisions = set(map(tuple, collisions_map))
-
-    # Need to test both directions, order is not clear from tree
-    assert (collisions | set(map(tuple, map(reversed, collisions))) ==
-            expected | set(map(tuple, map(reversed, expected))))
+    # Need to sort, order is undefined
+    collisions = set(map(tuple, np.sort(collisions_map, axis=1)))
+    assert collisions == expected
 
 
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1))])
@@ -190,11 +190,9 @@ def test_auto_program(cl_env, coord_dtype, size, sorter_shape):
         0, (n, 2), collider.id_dtype,
         is_blocking=True
     )
-    collisions = set(map(tuple, collisions_map))
-
-    # Need to test both directions, order is not clear from tree
-    assert (collisions | set(map(tuple, map(reversed, collisions))) ==
-            expected | set(map(tuple, map(reversed, expected))))
+    # Need to sort, order is undefined
+    collisions = set(map(tuple, np.sort(collisions_map, axis=1)))
+    assert collisions == expected
 
 
 @pytest.mark.parametrize("size,sorter_shape", [(100,(5,4))])
