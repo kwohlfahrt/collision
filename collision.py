@@ -42,7 +42,7 @@ class Collider:
         self.size = size
 
         # self.padded size not available before sorter creation
-        padded_size = roundUp(size, sorter_shape[0] * sorter_shape[1])
+        padded_size = self.pad_size(size, sorter_shape[0], sorter_shape[1])
         self.sorter = RadixSorter(ctx, padded_size, *sorter_shape,
                                   program=sorter_programs[0],
                                   scan_program=sorter_programs[1])
@@ -89,7 +89,7 @@ class Collider:
         ctx = self.program.context
         old_padded_size = self.padded_size
         old_n_nodes = self.n_nodes
-        self.sorter.resize(size, *sorter_shape)
+        self.sorter.resize(self.pad_size(self.size, *sorter_shape[:2]), *sorter_shape)
         self.reducer.resize(*sorter_shape[:2])
         self.size = size
 
@@ -121,9 +121,16 @@ class Collider:
     def n_nodes(self):
         return self.size * 2 - 1
 
+    def pad_size(self, size, ngroups, group_size):
+        if ngroups is None:
+            ngroups = self.sorter.ngroups
+        if group_size is None:
+            group_size = self.sorter.group_size
+        return roundUp(size, ngroups * group_size)
+
     @property
     def padded_size(self):
-        return roundUp(self.size, self.sorter.ngroups * self.sorter.group_size)
+        return self.pad_size(self.size, self.sorter.ngroups, self.sorter.group_size)
 
     def get_collisions(self, cq, coords_buf, radii_buf, collisions_buf,
                        n_collisions, wait_for=None):

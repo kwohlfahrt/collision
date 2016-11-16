@@ -116,7 +116,9 @@ def test_random_collision(cl_env, coord_dtype, collision_programs, size, sorter_
     assert collisions == expected
 
 
-@pytest.mark.parametrize("old_shape,new_shape", [((5,(5,1)), (20,(5,4)))])
+@pytest.mark.parametrize("old_shape,new_shape", [((5,(5,1)), (20,(5,4))),
+                                                 ((350, (8, 64)), (351, (8, 64))),
+                                                 ((350, (8, 64)), (351, (None, None)))])
 def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_shape, new_shape):
     ctx, cq = cl_env
 
