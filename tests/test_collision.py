@@ -10,7 +10,7 @@ np.random.seed(4)
 kernel_args = {'generateBVH': None,
                'fillInternal': None,
                'leafBounds': None,
-               'internalBounds': [None, None, None, np.dtype('uint8')],
+               'internalBounds': None,
                'calculateCodes': None,
                'traverse': [None, None, np.dtype('uint64'), None, None],}
 
@@ -181,7 +181,6 @@ def test_compute_bounds(cl_kernels, coord_dtype):
                        [-5.0, 0.0,-1.0]], dtype=coord_dtype)
     radii = np.ones(len(coords), dtype=coord_dtype)
     leaf = len(coords) - 1
-    depth = 3
     nodes = np.array([(-1, 3, [leaf+0, 1]),
                       ( 0, 3, [leaf+3, 2]),
                       ( 1, 2, [leaf+1, leaf+2]),
@@ -214,12 +213,11 @@ def test_compute_bounds(cl_kernels, coord_dtype):
         cq, (len(coords),), None,
         bounds_buf, coords_buf, radii_buf, nodes_buf,
     )
-    for i in range(depth):
-        calc_bounds = kernels['internalBounds'](
-            cq, (len(coords),), None,
-            bounds_buf, flags_buf, nodes_buf, i,
-            wait_for=[calc_leaf_bounds, clear_flags]
-        )
+    calc_bounds = kernels['internalBounds'](
+        cq, (len(coords),), None,
+        bounds_buf, flags_buf, nodes_buf,
+        wait_for=[calc_leaf_bounds, clear_flags]
+    )
     (bounds_map, _) = cl.enqueue_map_buffer(
         cq, bounds_buf, cl.map_flags.READ,
         0, (len(nodes), 2, 3), coord_dtype,
@@ -247,7 +245,6 @@ def test_traverse(cl_kernels, coord_dtype):
                        [-5.0, 0.5,-0.5]], dtype=coord_dtype)
     radii = np.ones(len(coords), dtype=coord_dtype)
     n_nodes = len(coords) * 2 - 1
-    depth = 3
 
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
@@ -316,12 +313,11 @@ def test_traverse(cl_kernels, coord_dtype):
         bounds_buf, coords_buf, radii_buf, nodes_buf,
         wait_for=[generate_bvh]
     )
-    for i in range(depth):
-        calc_bounds = kernels['internalBounds'](
-            cq, (len(coords),), None,
-            bounds_buf, flags_buf, nodes_buf, i,
-            wait_for=[clear_flags, calc_bounds]
-        )
+    calc_bounds = kernels['internalBounds'](
+        cq, (len(coords),), None,
+        bounds_buf, flags_buf, nodes_buf,
+        wait_for=[clear_flags, calc_bounds]
+    )
     clear_collisions = cl.enqueue_fill_buffer(
         cq, collisions_buf, np.array([-1], dtype='uint32'),
         0, n_collisions * 2 * np.dtype('uint32').itemsize

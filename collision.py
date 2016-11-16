@@ -8,9 +8,6 @@ from reduce import Reducer
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
-def ceil_log2(x):
-    return x.bit_length() - ((1 << (x.bit_length() - 1)) == x)
-
 class CollisionProgram(Program):
     src = Path(__file__).parent / "collision.cl"
     kernel_args = {'range': [None],
@@ -18,7 +15,7 @@ class CollisionProgram(Program):
                    'fillInternal': [None, None],
                    'generateBVH': [None, None],
                    'leafBounds': [None, None, None, None],
-                   'internalBounds': [None, None, None, dtype('uint8')],
+                   'internalBounds': [None, None, None],
                    'traverse': [None, None, dtype('uint64'), None, None]}
 
     def __init__(self, ctx, coord_dtype=dtype('float32')):
@@ -121,10 +118,6 @@ class Collider:
             )
 
     @property
-    def depth(self):
-        return ceil_log2(self.size)
-
-    @property
     def n_nodes(self):
         return self.size * 2 - 1
 
@@ -186,12 +179,11 @@ class Collider:
             self._bounds_buf, coords_buf, radii_buf, self._nodes_buf,
             wait_for=[fill_internal, generate_bvh]
         )
-        for level in range(self.depth):
-            calc_bounds = self.program.kernels['internalBounds'](
-                cq, (self.size,), None,
-                self._bounds_buf, self._flags_buf, self._nodes_buf, level,
-                wait_for=[clear_flags, calc_bounds]
-            )
+        calc_bounds = self.program.kernels['internalBounds'](
+            cq, (self.size,), None,
+            self._bounds_buf, self._flags_buf, self._nodes_buf,
+            wait_for=[clear_flags, calc_bounds]
+        )
         find_collisions = self.program.kernels['traverse'](
             cq, (self.size,), None,
             collisions_buf, self._n_collisions_buf, n_collisions,
