@@ -38,73 +38,6 @@ kernel void calculateCodes(global unsigned int * const codes,
     codes[get_global_id(0)] = morton(vload3(get_global_id(0), coords), min, max);
 }
 
-// TODO: Paper mentions special case of codes[idx] == codes[idx]
-// Section 2 (Binary radix trees) & Section 4
-char delta(const global unsigned int * const codes, const unsigned int n,
-                    const unsigned int idx, const long offset) {
-    if (offset < -((long) idx) || offset + idx >= n)
-        return -1;
-    return clz(codes[idx] ^ codes[idx + offset]);
-}
-
-char isign(const int x) {
-    return (x >= 0) * 2 - 1;
-}
-
-uint2 determineRange(const global unsigned int * const codes,
-                     const unsigned int n, const unsigned int idx) {
-    const char d = isign(delta(codes, n, idx, 1) - delta(codes, n, idx, -1));
-    const char delta_min = delta(codes, n, idx, -d);
-
-    // Find upper bound
-    unsigned int len_max = 1;
-    while (delta(codes, n, idx, ((long) len_max) * d) > delta_min)
-        len_max *= 2;
-
-    unsigned int len = 0;
-    unsigned int step = len_max / 2;
-
-    // Binary search
-    for (unsigned int step = len_max / 2; step > 0; step /= 2) {
-        long new_len = len + step;
-        if (delta(codes, n, idx, new_len*d) > delta_min)
-            len = new_len;
-    }
-
-    if (d > 0)
-        return (uint2)(idx, idx+len);
-    else
-        return (uint2)(idx-len, idx);
-}
-
-unsigned int findSplit(const global unsigned int * const codes, const uint2 range) {
-    const uint2 range_codes = (uint2)(codes[range.s0], codes[range.s1]);
-
-    if (range_codes.s0 == range_codes.s1)
-        // Split range in the middle
-        return (range.s0 + range.s1) / 2;
-
-    const unsigned char prefix = clz(range_codes.s0 ^ range_codes.s1);
-
-    // Initial guess
-    unsigned int split = range.s0;
-    unsigned int step = range.s1 - range.s0;
-
-    // Binary search
-    do {
-        step = (step + 1) / 2;
-        unsigned int new_split = split + step;
-
-        if (new_split < range.s1) {
-            unsigned char split_prefix = clz(range_codes.s0 ^ codes[new_split]);
-            if (split_prefix > prefix)
-                split = new_split;
-        }
-    } while (step > 1);
-
-    return split;
-}
-
 struct Node {
     unsigned int parent;
     unsigned int right_edge;
@@ -126,24 +59,60 @@ kernel void fillInternal(global struct Node * const nodes,
     nodes[leaf_start + get_global_id(0)].right_edge = get_global_id(0);
 }
 
+char delta(const global unsigned int * const codes, const unsigned int n,
+           const unsigned int i, const bool forward, const unsigned int offset) {
+    if (forward && (i + offset) >= n)
+        return -1;
+    if (!forward && offset > i)
+        return -1;
+
+    const unsigned int j = forward ? i + offset : i - offset;
+    if (codes[i] != codes[j])
+        return clz(codes[i] ^ codes[j]);
+    else
+        return sizeof(unsigned int) * 8 + clz(i ^ j);
+}
+
+// http://dx.doi.org/10.2312/EGGH/HPG12/033-037
+// No access at DOI link, but searchable
 kernel void generateBVH(const global unsigned int * const codes,
                         global struct Node * const nodes) {
     const unsigned int n = get_global_size(0) + 1;
-    const size_t idx = get_global_id(0);
-    const uint2 range = determineRange(codes, n, idx);
-    // (N-1) internal nodes + N leaf-nodes
-    const size_t leaf_start = n - 1;
+    const unsigned int leaf_start = n - 1;
+    const unsigned int i = get_global_id(0);
 
-    unsigned int split = findSplit(codes, range);
-    const unsigned int child_a = (split == range.s0) ? leaf_start + split : split;
-    split += 1;
-    const unsigned int child_b = (split == range.s1) ? leaf_start + split : split;
+    const bool forward = delta(codes, n, i, true, 1) > delta(codes, n, i, false, 1);
+    const char delta_min = delta(codes, n, i, !forward, 1);
 
-    nodes[idx].right_edge = range.s1;
-    nodes[idx].internal.children[0] = child_a;
-    nodes[idx].internal.children[1] = child_b;
-    nodes[child_a].parent = idx;
-    nodes[child_b].parent = idx;
+    unsigned int len_max = 2;
+    while (delta(codes, n, i, forward, len_max) > delta_min)
+        len_max *= 2;
+
+    unsigned int len = 0;
+    for (unsigned int t = len_max/2; t > 0; t /= 2)
+        if (delta(codes, n, i, forward, len + t) > delta_min)
+            len += t;
+
+    const unsigned int j = forward ? i + len : i - len;
+    const unsigned char delta_node = delta(codes, n, i, forward, len);
+    unsigned int s = 0;
+    {
+        unsigned int t = len;
+        do {
+            t = (t + 1) / 2;
+            if (delta(codes, n, i, forward, s + t) > delta_node)
+                s += t;
+        } while (t > 1);
+    }
+    unsigned int gamma = forward ? i + s : i - s - 1;
+    unsigned int child_a = (min(i, j) == gamma) ? leaf_start + gamma : gamma;
+    unsigned int child_b = (max(i, j) == gamma + 1) ? leaf_start + gamma + 1 : gamma + 1;
+
+    nodes[i].internal.children[0] = child_a;
+    nodes[i].internal.children[1] = child_b;
+    nodes[i].right_edge = max(i, j);
+    nodes[child_a].parent = i;
+    nodes[child_b].parent = i;
 }
 
 struct Bound {

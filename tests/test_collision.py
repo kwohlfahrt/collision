@@ -347,3 +347,61 @@ def test_traverse(cl_kernels, coord_dtype):
     )
     expected = {(0, 1), (4, 5)}
     assert set(map(tuple, collisions_map)) == expected
+
+
+def test_problem_codes(cl_kernels, coord_dtype):
+    from test_collision_py import find_collisions
+    ctx, cq, kernels = cl_kernels
+
+    codes = np.array([0b00000000000000000000000000000000,
+                      0b00000000000000000000000000000000,
+                      0b00000110110000110100000100000010,
+                      0b00001001001001001001001001001001,
+                      0b00001001001001001001001001001001,
+                      0b00010010010010010010010010010010,
+                      0b00010010010010010010010010010010,
+                      0b00010010011010010010011011011010,
+                      0b00011001001011001001011001001011,
+                      0b00011011011011011011011011011011,
+                      0b00100100010000100010110100010110,
+                      0b00100100100100100100100100100100,
+                      0b00100100100101101101100101100100,
+                      0b00101001101001101101101101101001,
+                      0b00101101101101101101101101101101,
+                      0b00110110110110110110110110110110, # This node had no parent
+                      0b00110110110110110110110110110110,
+                      0b00110110110110110110110110110110,
+                      0b00111111111111111111111111111111,
+                      0b00111111111111111111111111111111,
+                      0b00111111111111111111111111111111], dtype='uint32')
+    ids = np.arange(len(codes), dtype='uint32')
+    n_nodes = 2 * len(codes) - 1
+
+    codes_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=codes
+    )
+    ids_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=ids
+    )
+    nodes_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, n_nodes * Node.itemsize
+    )
+
+    fill_internal = kernels['fillInternal'](
+        cq, (len(codes),), None,
+        nodes_buf, ids_buf
+    )
+
+    generate_bvh = kernels['generateBVH'](
+        cq, (len(codes) - 1,), None,
+        codes_buf, nodes_buf,
+        wait_for=[fill_internal]
+    )
+
+    (nodes_map, _) = cl.enqueue_map_buffer(
+        cq, nodes_buf, cl.map_flags.READ,
+        0, n_nodes, Node,
+        wait_for=[generate_bvh], is_blocking=True
+    )
+    nodes_map.dtype = Node
+    assert set(nodes_map['parent'][1:]) == set(range(len(codes) - 1))
