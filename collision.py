@@ -49,7 +49,7 @@ class Collider:
         self.reducer = Reducer(ctx, *sorter_shape, coord_dtype=coord_dtype,
                                program=reducer_program)
         if program is None:
-            program = CollisionProgram(ctx)
+            program = CollisionProgram(ctx, coord_dtype)
         else:
             if program.context != ctx:
                 raise ValueError("Collider and program context must match")

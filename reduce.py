@@ -23,7 +23,7 @@ class ReductionProgram(Program):
 class Reducer:
     def __init__(self, ctx, ngroups, group_size, coord_dtype=dtype('float32'), program=None):
         if program is None:
-            program = ReductionProgram(ctx)
+            program = ReductionProgram(ctx, coord_dtype)
         else:
             if program.context != ctx:
                 raise ValueError("Collider and program context must match")

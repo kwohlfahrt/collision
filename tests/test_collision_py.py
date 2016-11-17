@@ -231,3 +231,12 @@ def test_count_err(cl_env, coord_dtype, collision_programs, size, sorter_shape):
 
     with pytest.raises(ValueError):
         n = collider.get_collisions(cq, coords_buf, radii_buf, None, len(expected))
+
+
+@pytest.mark.parametrize("dt", ['float32', np.dtype('float32'),
+                                'float64', np.dtype('float64')])
+def test_collider_dtype(cl_env, dt):
+    ctx, cq = cl_env
+    collider = Collider(ctx, 100, (5, 4), coord_dtype=dt)
+    assert collider.program.coord_dtype == np.dtype(dt)
+    assert collider.reducer.program.coord_dtype == np.dtype(dt)
