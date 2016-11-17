@@ -8,15 +8,19 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
 
 @pytest.fixture(scope='module')
-def cl_reduce(coord_dtype):
+def cl_env():
     ctx = cl.create_some_context()
     cq = cl.CommandQueue(ctx)
-    program = ReductionProgram(ctx, coord_dtype)
-    return ctx, cq, program
+    return ctx, cq
+
+@pytest.fixture(scope='module')
+def program(cl_env, coord_dtype):
+    ctx, cq = cl_env
+    return ReductionProgram(ctx, coord_dtype)
 
 @pytest.mark.parametrize("size,ngroups,group_size", [(24,2,4), (100, 4, 8)])
-def test_bounds(cl_reduce, coord_dtype, size, ngroups, group_size):
-    ctx, cq, program = cl_reduce
+def test_bounds(cl_env, program, coord_dtype, size, ngroups, group_size):
+    ctx, cq = cl_env
 
     reducer = Reducer(ctx, ngroups, group_size, coord_dtype, program)
     values = np.random.normal(size=(size, 3)).astype(coord_dtype)
@@ -41,8 +45,8 @@ def test_bounds(cl_reduce, coord_dtype, size, ngroups, group_size):
     np.testing.assert_equal(out_buf, expected)
 
 @pytest.mark.parametrize("size,old_shape,new_shape", [(100,(2,4),(4, 8))])
-def test_bounds_resized(cl_reduce, coord_dtype, size, old_shape, new_shape):
-    ctx, cq, program = cl_reduce
+def test_bounds_resized(cl_env, program, coord_dtype, size, old_shape, new_shape):
+    ctx, cq = cl_env
 
     reducer = Reducer(ctx, *old_shape, coord_dtype, program=program)
     reducer.resize(*new_shape)
@@ -69,8 +73,8 @@ def test_bounds_resized(cl_reduce, coord_dtype, size, old_shape, new_shape):
 
 # Need > 1 parameter due to pytest #2067
 @pytest.mark.parametrize("size,ngroups,group_size", [(24,2,4), (100, 4, 8)])
-def test_auto_program(cl_reduce, size, ngroups, group_size, coord_dtype):
-    ctx, cq, _ = cl_reduce
+def test_auto_program(cl_env, size, ngroups, group_size, coord_dtype):
+    ctx, cq = cl_env
 
     reducer = Reducer(ctx, ngroups, group_size, coord_dtype)
     values = np.random.normal(scale=1e8, size=(size, 3)).astype(coord_dtype)
