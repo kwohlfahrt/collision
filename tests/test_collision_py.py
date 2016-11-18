@@ -70,14 +70,23 @@ def test_collision(cl_env, coord_dtype, collision_programs):
     collisions_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
+    n_collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, collider.counter_dtype.itemsize
+    )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
-    assert n == len(expected)
+    e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf, len(expected))
+
+    (n_collisions_map, _) = cl.enqueue_map_buffer(
+        cq, n_collisions_buf, cl.map_flags.READ,
+        0, 1, collider.counter_dtype,
+        wait_for=[e], is_blocking=True
+    )
+    assert n_collisions_map[0] == len(expected)
 
     (collisions_map, _) = cl.enqueue_map_buffer(
         cq, collisions_buf, cl.map_flags.READ,
-        0, (n, 2), collider.id_dtype,
-        is_blocking=True
+        0, (n_collisions_map[0], 2), collider.id_dtype,
+        wait_for=[e], is_blocking=True
     )
     assert set(map(tuple, collisions_map)) == expected
 
@@ -104,13 +113,25 @@ def test_random_collision(cl_env, coord_dtype, collision_programs, size, sorter_
     collisions_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
+    n_collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, collider.counter_dtype.itemsize
+    )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
+    e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf, len(expected))
+
+    (n_collisions_map, _) = cl.enqueue_map_buffer(
+        cq, n_collisions_buf, cl.map_flags.READ,
+        0, 1, collider.counter_dtype,
+        wait_for=[e], is_blocking=True
+    )
+    assert n_collisions_map[0] == len(expected)
+
     (collisions_map, _) = cl.enqueue_map_buffer(
         cq, collisions_buf, cl.map_flags.READ,
-        0, (n, 2), collider.id_dtype,
-        is_blocking=True
+        0, (n_collisions_map[0], 2), collider.id_dtype,
+        wait_for=[e], is_blocking=True
     )
+
     # Need to sort, order is undefined
     collisions = set(map(tuple, np.sort(collisions_map, axis=1)))
     assert collisions == expected
@@ -141,15 +162,25 @@ def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_s
     collisions_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
+    n_collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, collider.counter_dtype.itemsize
+    )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, collisions_buf, len(expected))
-    assert n == len(expected)
+    e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf, len(expected))
+
+    (n_collisions_map, _) = cl.enqueue_map_buffer(
+        cq, n_collisions_buf, cl.map_flags.READ,
+        0, 1, collider.counter_dtype,
+        wait_for=[e], is_blocking=True
+    )
+    assert n_collisions_map[0] == len(expected)
 
     (collisions_map, _) = cl.enqueue_map_buffer(
         cq, collisions_buf, cl.map_flags.READ,
-        0, (n, 2), collider.id_dtype,
-        is_blocking=True
+        0, (n_collisions_map[0], 2), collider.id_dtype,
+        wait_for=[e], is_blocking=True
     )
+
     # Need to sort, order is undefined
     collisions = set(map(tuple, np.sort(collisions_map, axis=1)))
     assert collisions == expected
@@ -175,16 +206,25 @@ def test_auto_program(cl_env, coord_dtype, size, sorter_shape):
     collisions_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, len(expected) * 2 * collider.id_dtype.itemsize
     )
+    n_collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, collider.counter_dtype.itemsize
+    )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf,
-                                collisions_buf, len(expected))
-    assert n == len(expected)
+    e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf, len(expected))
+
+    (n_collisions_map, _) = cl.enqueue_map_buffer(
+        cq, n_collisions_buf, cl.map_flags.READ,
+        0, 1, collider.counter_dtype,
+        wait_for=[e], is_blocking=True
+    )
+    assert n_collisions_map[0] == len(expected)
 
     (collisions_map, _) = cl.enqueue_map_buffer(
         cq, collisions_buf, cl.map_flags.READ,
-        0, (n, 2), collider.id_dtype,
-        is_blocking=True
+        0, (n_collisions_map[0], 2), collider.id_dtype,
+        wait_for=[e], is_blocking=True
     )
+
     # Need to sort, order is undefined
     collisions = set(map(tuple, np.sort(collisions_map, axis=1)))
     assert collisions == expected
@@ -207,9 +247,18 @@ def test_count_only(cl_env, coord_dtype, collision_programs, size, sorter_shape)
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
+    n_collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, collider.counter_dtype.itemsize
+    )
 
-    n = collider.get_collisions(cq, coords_buf, radii_buf, None, 0)
-    assert n == len(expected)
+    e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, None, 0)
+
+    (n_collisions_map, _) = cl.enqueue_map_buffer(
+        cq, n_collisions_buf, cl.map_flags.READ,
+        0, 1, collider.counter_dtype,
+        wait_for=[e], is_blocking=True
+    )
+    assert n_collisions_map[0] == len(expected)
 
 @pytest.mark.parametrize("size,sorter_shape", [(100,(5,4))])
 def test_count_err(cl_env, coord_dtype, collision_programs, size, sorter_shape):
@@ -228,9 +277,12 @@ def test_count_err(cl_env, coord_dtype, collision_programs, size, sorter_shape):
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
+    n_collisions_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, collider.counter_dtype.itemsize
+    )
 
     with pytest.raises(ValueError):
-        n = collider.get_collisions(cq, coords_buf, radii_buf, None, len(expected))
+        e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, None, len(expected))
 
 
 @pytest.mark.parametrize("dt", ['float32', np.dtype('float32'),

@@ -80,10 +80,6 @@ class Collider:
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
             self.n_nodes * self.flag_dtype.itemsize
         )
-        self._n_collisions_buf = cl.Buffer(
-            ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_READ_ONLY,
-            self.counter_dtype.itemsize
-        )
 
     def resize(self, size=None, sorter_shape=(None, None, None)):
         ctx = self.program.context
@@ -132,7 +128,7 @@ class Collider:
     def padded_size(self):
         return self.pad_size(self.size, self.sorter.ngroups, self.sorter.group_size)
 
-    def get_collisions(self, cq, coords_buf, radii_buf, collisions_buf,
+    def get_collisions(self, cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf,
                        n_collisions, wait_for=None):
         if wait_for is None:
             wait_for = []
@@ -154,7 +150,7 @@ class Collider:
             0, self.n_nodes * self.flag_dtype.itemsize
         )
         clear_n_collisions = cl.enqueue_fill_buffer(
-            cq, self._n_collisions_buf, zeros(1, dtype=self.counter_dtype),
+            cq, n_collisions_buf, zeros(1, dtype=self.counter_dtype),
             0, self.counter_dtype.itemsize
         )
 
@@ -193,14 +189,9 @@ class Collider:
         )
         find_collisions = self.program.kernels['traverse'](
             cq, (self.size,), None,
-            collisions_buf, self._n_collisions_buf, n_collisions,
+            collisions_buf, n_collisions_buf, n_collisions,
             self._nodes_buf, self._bounds_buf,
             wait_for=[clear_n_collisions, calc_bounds],
         )
 
-        (n_collisions_map, _) = cl.enqueue_map_buffer(
-            cq, self._n_collisions_buf, cl.map_flags.READ,
-            0, 1, self.counter_dtype,
-            wait_for=[find_collisions], is_blocking=True
-        )
-        return int(n_collisions_map[0])
+        return find_collisions
