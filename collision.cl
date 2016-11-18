@@ -174,8 +174,8 @@ bool isLeaf(const unsigned int idx, const unsigned int n) {
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
 kernel void traverse(global unsigned int * const collisions,
-                     global unsigned long * const next,
-                     const unsigned long n_collisions,
+                     global unsigned int * const next,
+                     const unsigned int n_collisions,
                      const global struct Node * const nodes,
                      const global struct Bound * const bounds) {
     unsigned int n = get_global_size(0);
@@ -200,14 +200,14 @@ kernel void traverse(global unsigned int * const collisions,
         overlap_b &= !(nodes[child_b].right_edge <= query_idx);
 
         if (overlap_a && isLeaf(child_a, n)) {
-            const unsigned long collision_idx = atom_inc(next);
+            const unsigned int collision_idx = atomic_inc(next);
             if (collision_idx < n_collisions) {
                 collisions[collision_idx*2+0] = nodes[leaf_start+query_idx].leaf.id;
                 collisions[collision_idx*2+1] = nodes[child_a].leaf.id;
             }
         }
         if (overlap_b && isLeaf(child_b, n)) {
-            const unsigned long collision_idx = atom_inc(next);
+            const unsigned int collision_idx = atomic_inc(next);
             if (collision_idx < n_collisions) {
                 collisions[collision_idx*2+0] = nodes[leaf_start+query_idx].leaf.id;
                 collisions[collision_idx*2+1] = nodes[child_b].leaf.id;

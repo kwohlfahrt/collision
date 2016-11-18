@@ -16,7 +16,7 @@ class CollisionProgram(Program):
                    'generateBVH': [None, None],
                    'leafBounds': [None, None, None, None],
                    'internalBounds': [None, None, None],
-                   'traverse': [None, None, dtype('uint64'), None, None]}
+                   'traverse': [None, None, dtype('uint32'), None, None]}
 
     def __init__(self, ctx, coord_dtype=dtype('float32')):
         coord_dtype = dtype(coord_dtype)
@@ -34,7 +34,7 @@ class CollisionProgram(Program):
 class Collider:
     code_dtype = dtype('uint32')
     flag_dtype = dtype('uint32') # Smallest atomic
-    counter_dtype = dtype('uint64')
+    counter_dtype = dtype('uint32')
     id_dtype = dtype('uint32')
 
     def __init__(self, ctx, size, sorter_shape, coord_dtype=dtype('float32'),

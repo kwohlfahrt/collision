@@ -12,7 +12,7 @@ kernel_args = {'generateBVH': None,
                'leafBounds': None,
                'internalBounds': None,
                'calculateCodes': None,
-               'traverse': [None, None, np.dtype('uint64'), None, None],}
+               'traverse': [None, None, np.dtype('uint32'), None, None],}
 
 
 def pytest_generate_tests(metafunc):
@@ -273,7 +273,7 @@ def test_traverse(cl_kernels, coord_dtype):
         ctx, cl.mem_flags.WRITE_ONLY, n_collisions * 2 * np.dtype('uint32').itemsize
     )
     n_collisions_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_WRITE, np.dtype('uint64').itemsize
+        ctx, cl.mem_flags.READ_WRITE, np.dtype('uint32').itemsize
     )
 
     calc_codes = kernels['calculateCodes'](
@@ -323,8 +323,8 @@ def test_traverse(cl_kernels, coord_dtype):
         0, n_collisions * 2 * np.dtype('uint32').itemsize
     )
     clear_n_collisions = cl.enqueue_fill_buffer(
-        cq, n_collisions_buf, np.zeros(1, dtype='uint64'),
-        0, np.dtype('uint64').itemsize
+        cq, n_collisions_buf, np.zeros(1, dtype='uint32'),
+        0, np.dtype('uint32').itemsize
     )
     find_collisions = kernels['traverse'](
         cq, (len(coords),), None,
@@ -334,7 +334,7 @@ def test_traverse(cl_kernels, coord_dtype):
 
     (n_collisions_map, _) = cl.enqueue_map_buffer(
         cq, n_collisions_buf, cl.map_flags.READ,
-        0, 1, np.dtype('uint64'),
+        0, 1, np.dtype('uint32'),
         wait_for=[find_collisions], is_blocking=True
     )
 
