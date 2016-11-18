@@ -3,7 +3,7 @@ import pyopencl as cl
 from pathlib import Path
 import pytest
 from itertools import product as cartesian
-from collision import Node
+from collision.collision import Node
 
 np.random.seed(4)
 
@@ -28,7 +28,7 @@ def cl_kernels(coord_dtype):
     c_dtypes = {'float32': 'float', 'float64': 'double'}
     buildopts = ["-D DTYPE={}".format(c_dtypes[coord_dtype])]
 
-    src = Path(__file__).parent / ".." / "collision.cl"
+    src = Path(__file__).parent / ".." / "collision"/ "collision.cl"
     with src.open("r") as f:
         program = cl.Program(ctx, f.read()).build(buildopts)
         kernels = {name: getattr(program, name) for name in kernel_args}
@@ -350,7 +350,7 @@ def test_traverse(cl_kernels, coord_dtype):
 
 
 def test_problem_codes(cl_kernels, coord_dtype):
-    from test_collision_py import find_collisions
+    from .test_collision_py import find_collisions
     ctx, cq, kernels = cl_kernels
 
     codes = np.array([0b00000000000000000000000000000000,

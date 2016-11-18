@@ -23,7 +23,7 @@ def scan_kernels(cl_env):
     kernel_args = {'local_scan': [None, None], 'block_scan': [None, None]}
     ctx, cq = cl_env
 
-    src = Path(__file__).parent / ".." / "scan.cl"
+    src = Path(__file__).parent / ".." / "collision" / "scan.cl"
     with src.open("r") as f:
         program = cl.Program(ctx, f.read()).build()
     kernels = {name: getattr(program, name) for name in kernel_args}
@@ -43,7 +43,7 @@ def radix_kernels(cl_env, request, value_dtype):
 
     buildopts = ["-D DTYPE={}".format(c_dtypes[value_dtype])]
 
-    src = Path(__file__).parent / ".." / "radix.cl"
+    src = Path(__file__).parent / ".." / "collision" / "radix.cl"
     with src.open("r") as f:
         program = cl.Program(ctx, f.read()).build(buildopts)
     kernels = {name: getattr(program, name) for name in kernel_args}

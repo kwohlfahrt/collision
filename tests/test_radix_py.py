@@ -1,7 +1,7 @@
 import numpy as np
 import pyopencl as cl
 import pytest
-from radix import *
+from collision.radix import *
 
 np.random.seed(4)
 

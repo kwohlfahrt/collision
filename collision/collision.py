@@ -2,9 +2,9 @@ from numpy import dtype, zeros, array
 from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
-from misc import Program
-from radix import RadixSorter, roundUp
-from reduce import Reducer
+from .misc import Program
+from .radix import RadixSorter, roundUp
+from .reduce import Reducer
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 

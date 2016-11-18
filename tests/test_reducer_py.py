@@ -1,7 +1,7 @@
 import numpy as np
 import pyopencl as cl
 import pytest
-from reduce import *
+from collision.reduce import *
 
 def pytest_generate_tests(metafunc):
     if 'coord_dtype' in metafunc.fixturenames:

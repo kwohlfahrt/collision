@@ -2,7 +2,7 @@ from numpy import dtype, zeros
 from pathlib import Path
 from itertools import accumulate, chain, tee, zip_longest
 import pyopencl as cl
-from misc import Program
+from .misc import Program
 
 def ceildiv(a, b):
     return (a + b - 1) // b

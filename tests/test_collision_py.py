@@ -1,9 +1,7 @@
 import numpy as np
 import pyopencl as cl
 import pytest
-from radix import RadixProgram, PrefixScanProgram
-from reduce import ReductionProgram
-from collision import *
+from collision.collision import *
 
 def pytest_generate_tests(metafunc):
     if 'coord_dtype' in metafunc.fixturenames:
@@ -20,6 +18,9 @@ def cl_env():
 
 @pytest.fixture(scope='module')
 def collision_programs(cl_env, coord_dtype):
+    from collision.radix import RadixProgram, PrefixScanProgram
+    from collision.reduce import ReductionProgram
+
     ctx, cq = cl_env
     program = CollisionProgram(ctx, coord_dtype)
     radix_program = RadixProgram(ctx)

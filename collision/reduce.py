@@ -1,7 +1,7 @@
 from numpy import dtype, zeros
 from pathlib import Path
 import pyopencl as cl
-from misc import Program
+from .misc import Program
 
 class ReductionProgram(Program):
     src = Path(__file__).parent / "reduce.cl"
