@@ -171,26 +171,20 @@ def test_sort_pass(cl_env, radix_kernels, scan_kernels, value_dtype):
             histogram_buf, values_buf, len(values), radix_pass, radix_bits,
             g_times_l=True, wait_for=[fill_values, clear_histogram]
         )
-        calc_scan = scan_kernels['local_scan'](
-            cq, (histogram_len // 2,), (scan_block_len,),
-            histogram_buf, block_sums_buf,
-            wait_for=[calc_hist]
+
+        (histogram_map, _) = cl.enqueue_map_buffer(
+            cq, histogram_buf, cl.map_flags.READ | cl.map_flags.WRITE,
+            0, histogram_len, np.dtype('uint32'),
+            wait_for=[calc_hist], is_blocking=True,
         )
-        calc_block_scan = scan_kernels['local_scan'](
-            cq, (1,), (histogram_len // 2 // scan_block_len,),
-            block_sums_buf, None,
-            g_times_l=True, wait_for=[calc_scan]
-        )
-        calc_scan = scan_kernels['block_scan'](
-            cq, (histogram_len // 2,), (scan_block_len,),
-            histogram_buf, block_sums_buf,
-            wait_for=[calc_block_scan]
-        )
+        histogram_map[...] = np.pad(np.cumsum(histogram_map[:-1]), (1, 0), 'constant')
+        del histogram_map
+
         calc_scatter = radix_kernels['scatter'](
             cq, (ngroups,), (group_items,),
             values_buf, out_values_buf, None, None, len(values),
             histogram_buf, radix_pass, radix_bits,
-            g_times_l=True, wait_for=[calc_scan]
+            g_times_l=True,
         )
         fill_values = cl.enqueue_copy(
             cq, values_buf, out_values_buf, byte_count=values.nbytes,
