@@ -12,3 +12,6 @@ class Program:
     @property
     def context(self):
         return self.program.get_info(cl.program_info.CONTEXT)
+
+def roundUp(x, base=1):
+  return (x // base + bool(x % base)) * base
