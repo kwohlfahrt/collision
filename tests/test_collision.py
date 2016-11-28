@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from itertools import product as cartesian
 from collision.collision import Node
+from .common import cl_env
 
 np.random.seed(4)
 
@@ -21,9 +22,8 @@ def pytest_generate_tests(metafunc):
 
 
 @pytest.fixture(scope='module')
-def cl_kernels(coord_dtype):
-    ctx = cl.create_some_context()
-    cq = cl.CommandQueue(ctx)
+def kernels(cl_env, coord_dtype):
+    ctx, cq = cl_env
 
     c_dtypes = {'float32': 'float', 'float64': 'double'}
     buildopts = ["-D DTYPE={}".format(c_dtypes[coord_dtype])]
@@ -37,11 +37,11 @@ def cl_kernels(coord_dtype):
             if arg_types is not None:
                 kernel.set_scalar_arg_dtypes(arg_types)
 
-    return ctx, cq, kernels
+    return kernels
 
 
-def test_fill_internal(cl_kernels):
-    ctx, cq, kernels = cl_kernels
+def test_fill_internal(cl_env, kernels):
+    ctx, cq = cl_env
 
     n = 8
     ids = np.random.permutation(n).astype('uint32')
@@ -68,8 +68,8 @@ def test_fill_internal(cl_kernels):
     np.testing.assert_equal(nodes_map['right_edge'], np.arange(n))
 
 
-def test_generate_bvh(cl_kernels):
-    ctx, cq, kernels = cl_kernels
+def test_generate_bvh(cl_env, kernels):
+    ctx, cq = cl_env
 
     # From Figure 3
     codes = np.array([0b00001, 0b00010, 0b00100, 0b00101,
@@ -121,8 +121,8 @@ def test_generate_bvh(cl_kernels):
     np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes)))
 
 
-def test_generate_odd_bvh(cl_kernels):
-    ctx, cq, kernels = cl_kernels
+def test_generate_odd_bvh(cl_env, kernels):
+    ctx, cq = cl_env
 
     # From Figure 3
     codes = np.array([0b00001, 0b00010, 0b00100, 0b00101,
@@ -172,8 +172,8 @@ def test_generate_odd_bvh(cl_kernels):
     np.testing.assert_equal(nodes_map['data'][leaf:, 0], np.arange(len(codes)))
 
 
-def test_compute_bounds(cl_kernels, coord_dtype):
-    ctx, cq, kernels = cl_kernels
+def test_compute_bounds(cl_env, kernels, coord_dtype):
+    ctx, cq = cl_env
 
     coords = np.array([[ 0.0, 1.0, 3.0],
                        [ 4.0, 1.0, 8.0],
@@ -234,8 +234,8 @@ def test_compute_bounds(cl_kernels, coord_dtype):
     np.testing.assert_equal(bounds_map, expected)
 
 
-def test_traverse(cl_kernels, coord_dtype):
-    ctx, cq, kernels = cl_kernels
+def test_traverse(cl_env, kernels, coord_dtype):
+    ctx, cq = cl_env
 
     coords = np.array([[ 0.0, 1.0, 3.0],
                        [ 0.0, 1.0, 3.0],
@@ -349,9 +349,9 @@ def test_traverse(cl_kernels, coord_dtype):
     assert set(map(tuple, collisions_map)) == expected
 
 
-def test_problem_codes(cl_kernels, coord_dtype):
+def test_problem_codes(cl_env, kernels, coord_dtype):
     from .test_collision_py import find_collisions
-    ctx, cq, kernels = cl_kernels
+    ctx, cq = cl_env
 
     codes = np.array([0b00000000000000000000000000000000,
                       0b00000000000000000000000000000000,

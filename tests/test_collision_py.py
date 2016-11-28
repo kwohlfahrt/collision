@@ -2,18 +2,11 @@ import numpy as np
 import pyopencl as cl
 import pytest
 from collision.collision import *
+from .common import cl_env
 
 def pytest_generate_tests(metafunc):
     if 'coord_dtype' in metafunc.fixturenames:
         metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
-
-
-@pytest.fixture(scope='module')
-def cl_env():
-    ctx = cl.create_some_context()
-    properties = cl.command_queue_properties.OUT_OF_ORDER_EXEC_MODE_ENABLE
-    cq = cl.CommandQueue(ctx, properties=properties)
-    return ctx, cq
 
 
 @pytest.fixture(scope='module')

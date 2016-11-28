@@ -3,19 +3,13 @@ import pyopencl as cl
 from pathlib import Path
 import pytest
 from itertools import product as cartesian
+from .common import cl_env
 
 np.random.seed(4)
 
 def pytest_generate_tests(metafunc):
     if 'value_dtype' in metafunc.fixturenames:
         metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
-
-
-@pytest.fixture(scope='module')
-def cl_env():
-    ctx = cl.create_some_context()
-    cq = cl.CommandQueue(ctx)
-    return ctx, cq
 
 
 @pytest.fixture(scope='module')
