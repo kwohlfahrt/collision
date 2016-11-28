@@ -9,7 +9,7 @@ def ceildiv(a, b):
 
 class PrefixScanProgram(Program):
     src = Path(__file__).parent / "scan.cl"
-    kernel_args = {'local_scan': [None, None],
+    kernel_args = {'local_scan': [None, None, None],
                    'block_scan': [None, None]}
 
 class PrefixScanner:
@@ -76,9 +76,10 @@ class PrefixScanner:
         return tuple(block_sizes)
 
     def prefix_sum(self, cq, values_buf, wait_for=None):
+        local_size = self.group_size * 2 * self.block_sums_dtype.itemsize
         e = self.program.kernels['local_scan'](
             cq, (self.size // 2,), (self.group_size,),
-            values_buf, self._block_sums_bufs[0],
+            values_buf, cl.LocalMemory(local_size), self._block_sums_bufs[0],
             wait_for=wait_for
         )
 
@@ -87,13 +88,14 @@ class PrefixScanner:
         for size, in_buf, out_buf in zip(self.block_lengths, *bufs):
             e = self.program.kernels['local_scan'](
                 cq, (size // 2,), (self.group_size,),
-                in_buf, out_buf,
+                in_buf, cl.LocalMemory(local_size), out_buf,
                 wait_for=[e]
             )
 
+        local_size = self.block_lengths[-1] * self.block_sums_dtype.itemsize
         e = self.program.kernels['local_scan'](
             cq, (1,), (self.block_lengths[-1] // 2,),
-            self._block_sums_bufs[-1], None,
+            self._block_sums_bufs[-1], cl.LocalMemory(local_size), None,
             g_times_l=True, wait_for=[e]
         )
 

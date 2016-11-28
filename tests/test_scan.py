@@ -12,7 +12,7 @@ def pytest_generate_tests(metafunc):
 
 @pytest.fixture(scope='module')
 def scan_kernels(cl_env):
-    kernel_args = {'local_scan': [None, None], 'block_scan': [None, None]}
+    kernel_args = {'local_scan': [None, None, None], 'block_scan': [None, None]}
     ctx, cq = cl_env
 
     src = Path(__file__).parent / ".." / "collision" / "scan.cl"
@@ -42,7 +42,7 @@ def test_scan(cl_env, scan_kernels):
     )
     calc_scan = scan_kernels['local_scan'](
         cq, (len(values) // 2,), (block_size,),
-        values_buf, block_sums_buf,
+        values_buf, cl.LocalMemory(block_size * 2 * values.dtype.itemsize), block_sums_buf,
     )
 
     (values_map, _) = cl.enqueue_map_buffer(
@@ -79,7 +79,7 @@ def test_block_scan(cl_env, scan_kernels):
 
     calc_block_scan = scan_kernels['local_scan'](
         cq, (1,), (len(block_sums),),
-        block_sums_buf, None,
+        block_sums_buf, cl.LocalMemory(len(block_sums) * 2 * values.dtype.itemsize), None,
         g_times_l=True
     )
 
