@@ -6,9 +6,9 @@ from .scan import PrefixScanProgram, PrefixScanner
 
 class RadixProgram(Program):
     src = Path(__file__).parent / "radix.cl"
-    kernel_args = {'histogram': [None, None, dtype('int32'), dtype('int8'), dtype('int8')],
+    kernel_args = {'histogram': [None, None, None, dtype('int32'), dtype('int8'), dtype('int8')],
                    'scatter': [None, None, None, None, dtype('int32'),
-                               None, dtype('int8'), dtype('int8')],}
+                               None, None, dtype('int8'), dtype('int8')],}
 
     def __init__(self, ctx, value_dtype=dtype('uint32')):
         value_dtype = dtype(value_dtype)
@@ -103,6 +103,9 @@ class RadixSorter:
     def sort(self, cq, keys_buf, out_keys_buf,
              in_values_buf=None, out_values_buf=None, wait_for=None):
         wait_for = wait_for or []
+        local_histogram = cl.LocalMemory((2 ** self.radix_bits) * self.group_size
+                                         * self.histogram_dtype.itemsize)
+
         for radix_pass in range(self.num_passes):
             clear_histogram = cl.enqueue_fill_buffer(
                 cq, self._histogram_buf, zeros(1, dtype='uint32'),
@@ -110,14 +113,15 @@ class RadixSorter:
             )
             calc_hist = self.program.kernels['histogram'](
                 cq, (self.ngroups,), (self.group_size,),
-                self._histogram_buf, keys_buf, self.size, radix_pass, self.radix_bits,
+                self._histogram_buf, local_histogram, keys_buf,
+                self.size, radix_pass, self.radix_bits,
                 g_times_l=True, wait_for=[clear_histogram] + wait_for
             )
             calc_scan = self.scanner.prefix_sum(cq, self._histogram_buf, [calc_hist])
             calc_scatter = self.program.kernels['scatter'](
                 cq, (self.ngroups,), (self.group_size,),
                 keys_buf, out_keys_buf, in_values_buf, out_values_buf, self.size,
-                self._histogram_buf, radix_pass, self.radix_bits,
+                self._histogram_buf, local_histogram, radix_pass, self.radix_bits,
                 g_times_l=True, wait_for=[calc_scan]
             )
             fill_keys = cl.enqueue_copy(

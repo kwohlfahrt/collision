@@ -15,10 +15,10 @@ def pytest_generate_tests(metafunc):
 
 @pytest.fixture(scope='module')
 def radix_kernels(cl_env, request, value_dtype):
-    kernel_args = {'histogram': [None, None, np.dtype('int32'),
+    kernel_args = {'histogram': [None, None, None, np.dtype('int32'),
                                  np.dtype('int8'), np.dtype('int8')],
                    'scatter': [None, None, None, None, np.dtype('int32'),
-                               None, np.dtype('int8'), np.dtype('int8')]}
+                               None, None, np.dtype('int8'), np.dtype('int8')]}
     c_dtypes = {'uint32': 'int', 'uint64': 'long'}
     ctx, cq = cl_env
 
@@ -62,6 +62,7 @@ def test_histogram(cl_env, radix_kernels, value_dtype):
         ctx, cl.mem_flags.READ_WRITE,
         (2 ** radix_bits) * ngroups * group_items * np.dtype('uint32').itemsize
     )
+    local_histogram = cl.LocalMemory(2 ** radix_bits * group_items * np.dtype('uint32').itemsize)
 
     item_size = len(values) // ngroups // group_items
     for radix_pass in [0, 1, 2]:
@@ -71,7 +72,7 @@ def test_histogram(cl_env, radix_kernels, value_dtype):
         )
         calc_hist = radix_kernels['histogram'](
             cq, (ngroups,), (group_items,),
-            histogram_buf, values_buf, len(values), radix_pass, radix_bits,
+            histogram_buf, local_histogram, values_buf, len(values), radix_pass, radix_bits,
             g_times_l=True, wait_for=[clear_histogram]
         )
 
@@ -109,11 +110,12 @@ def test_scatter(cl_env, radix_kernels, value_dtype):
     out_keys_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY, in_keys.nbytes
     )
+    local_histogram = cl.LocalMemory(2 ** radix_bits * np.dtype('uint32').itemsize)
 
     calc_scatter = radix_kernels['scatter'](
         cq, (1,), (1,),
         in_keys_buf, out_keys_buf, None, None, len(in_keys),
-        histogram_buf, radix_pass, radix_bits,
+        histogram_buf, local_histogram, radix_pass, radix_bits,
         g_times_l=True
     )
 
@@ -157,6 +159,7 @@ def test_sort_pass(cl_env, radix_kernels, scan_kernels, value_dtype):
         ctx, cl.mem_flags.READ_WRITE,
         (histogram_len // 2 // scan_block_len) * values.dtype.itemsize
     )
+    local_histogram = cl.LocalMemory(2 ** radix_bits * group_items * np.dtype('uint32').itemsize)
 
     fill_values = cl.enqueue_copy(
         cq, values_buf, out_values_buf, byte_count=values.nbytes
@@ -168,7 +171,7 @@ def test_sort_pass(cl_env, radix_kernels, scan_kernels, value_dtype):
         )
         calc_hist = radix_kernels['histogram'](
             cq, (ngroups,), (group_items,),
-            histogram_buf, values_buf, len(values), radix_pass, radix_bits,
+            histogram_buf, local_histogram, values_buf, len(values), radix_pass, radix_bits,
             g_times_l=True, wait_for=[fill_values, clear_histogram]
         )
 
@@ -183,7 +186,7 @@ def test_sort_pass(cl_env, radix_kernels, scan_kernels, value_dtype):
         calc_scatter = radix_kernels['scatter'](
             cq, (ngroups,), (group_items,),
             values_buf, out_values_buf, None, None, len(values),
-            histogram_buf, radix_pass, radix_bits,
+            histogram_buf, local_histogram, radix_pass, radix_bits,
             g_times_l=True,
         )
         fill_values = cl.enqueue_copy(
