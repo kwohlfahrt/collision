@@ -10,6 +10,7 @@ def scan_program(cl_env):
     ctx, cq = cl_env
     return PrefixScanProgram(ctx)
 
+
 def prefix_sum_setup(cq, values_buf, values):
     (values_map, _) = cl.enqueue_map_buffer(
         cq, values_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
@@ -19,8 +20,10 @@ def prefix_sum_setup(cq, values_buf, values):
     values_map[...] = values
     del values_map
 
+
 def prefix_sum(cq, scanner, values_buf):
     cl.wait_for_events([scanner.prefix_sum(cq, values_buf)])
+
 
 # Use size large enough that t > 100*μs
 @pytest.mark.parametrize("size,group_size,rounds", [

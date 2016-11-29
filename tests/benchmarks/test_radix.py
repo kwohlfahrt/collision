@@ -17,17 +17,28 @@ def radix_program(cl_env, value_dtype):
     return RadixProgram(ctx, value_dtype)
 
 
-def sort_keys(cq, sorter, *args):
+def radix_sort_setup(cq, bufs, values):
+    for buf, value in zip(bufs, values):
+        (buf_map, _) = cl.enqueue_map_buffer(
+            cq, buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+            0, value.shape, value.dtype,
+            wait_for=[], is_blocking=True
+        )
+        buf_map[...] = value
+        del buf_map
+
+
+def radix_sort(cq, sorter, *args):
     cl.wait_for_events([sorter.sort(cq, *args)])
 
 
-@pytest.mark.parametrize("size,gen,ngroups,group_size", [
-    (307200, partial(np.random.randint, 0, 1000), 16, 128),
-    (307200, partial(np.random.randint, 0, 307200), 16, 128),
-    (307200, np.arange, 16, 128),
+@pytest.mark.parametrize("size,gen,ngroups,group_size,rounds", [
+    (307200, partial(np.random.randint, 0, 1000), 16, 128, 100),
+    (307200, partial(np.random.randint, 0, 307200), 16, 128, 100),
+    (307200, np.arange, 16, 128, 100),
 ])
-def test_sort_keys(cl_env, radix_program, scan_program, value_dtype,
-                   size, gen, ngroups, group_size, benchmark):
+def test_radix_sort(cl_env, radix_program, scan_program, value_dtype,
+                    size, gen, ngroups, group_size, rounds, benchmark):
     ctx, cq = cl_env
     sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
                          program=radix_program, scan_program=scan_program)
@@ -35,12 +46,14 @@ def test_sort_keys(cl_env, radix_program, scan_program, value_dtype,
     keys = gen(size, dtype=value_dtype)
     expected = np.sort(keys)
 
-    keys_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
-    )
+    keys_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY, keys.nbytes)
     out_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
 
-    benchmark(sort_keys, cq, sorter, keys_buf, out_buf)
+    if value_dtype == np.dtype('uint64'):
+        rounds //= 2
+    benchmark.pedantic(radix_sort, (cq, sorter, keys_buf, out_buf),
+                       setup=partial(radix_sort_setup, cq, [keys_buf], [keys]),
+                       rounds=rounds, warmup_rounds=10)
 
     (out_map, _) = cl.enqueue_map_buffer(
         cq, out_buf, cl.map_flags.READ,
@@ -50,13 +63,13 @@ def test_sort_keys(cl_env, radix_program, scan_program, value_dtype,
     np.testing.assert_equal(out_map, expected)
 
 
-@pytest.mark.parametrize("size,gen,ngroups,group_size", [
-    (307200, partial(np.random.randint, 0, 1000), 16, 128),
-    (307200, partial(np.random.randint, 0, 307200), 16, 128),
-    (307200, np.arange, 16, 128),
+@pytest.mark.parametrize("size,gen,ngroups,group_size,rounds", [
+    (307200, partial(np.random.randint, 0, 1000), 16, 128, 100),
+    (307200, partial(np.random.randint, 0, 307200), 16, 128, 100),
+    (307200, np.arange, 16, 128, 100),
 ])
 def test_sort_values(cl_env, radix_program, scan_program, value_dtype,
-                     size, gen, ngroups, group_size, benchmark):
+                     size, gen, ngroups, group_size, rounds, benchmark):
     ctx, cq = cl_env
     sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
                          program=radix_program, scan_program=scan_program)
@@ -76,7 +89,11 @@ def test_sort_values(cl_env, radix_program, scan_program, value_dtype,
     )
     out_values_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, values.nbytes)
 
-    benchmark(sort_keys, cq, sorter, keys_buf, out_keys_buf, values_buf, out_values_buf)
+    if value_dtype == np.dtype('uint64'):
+        rounds //= 2
+    benchmark.pedantic(radix_sort, (cq, sorter, keys_buf, out_keys_buf, values_buf, out_values_buf),
+                       setup=partial(radix_sort_setup, cq, [keys_buf, values_buf], [keys, values]),
+                       rounds=rounds, warmup_rounds=10)
 
     for out_buf, expected in [(out_keys_buf, expected_keys),
                               (out_values_buf, expected_values)]:
