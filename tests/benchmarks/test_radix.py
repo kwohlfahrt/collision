@@ -2,58 +2,87 @@ import numpy as np
 import pyopencl as cl
 import pytest
 from functools import partial
-from collision.radix import RadixProgram, PrefixScanProgram, PrefixScanner
+from collision.radix import RadixProgram, RadixSorter
+from ..common import cl_env
+from .test_scan import scan_program
 
 def pytest_generate_tests(metafunc):
     if 'value_dtype' in metafunc.fixturenames:
         metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
 
-@pytest.fixture(scope='module')
-def cl_env():
-    ctx = cl.create_some_context()
-    cq = cl.CommandQueue(ctx)
-    return ctx, cq
 
 @pytest.fixture(scope='module')
-def scan_program(cl_env):
+def radix_program(cl_env, value_dtype):
     ctx, cq = cl_env
-    return PrefixScanProgram(ctx)
+    return RadixProgram(ctx, value_dtype)
 
-def prefix_sum_setup(cq, values_buf, values):
-    (values_map, _) = cl.enqueue_map_buffer(
-        cq, values_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
-        0, values.shape, values.dtype,
-        wait_for=[], is_blocking=True
-    )
-    values_map[...] = values
-    del values_map
 
-def prefix_sum(cq, scanner, values_buf):
-    cl.wait_for_events([scanner.prefix_sum(cq, values_buf)])
+def sort_keys(cq, sorter, *args):
+    cl.wait_for_events([sorter.sort(cq, *args)])
 
-# Use size large enough that t > 100*μs
-@pytest.mark.parametrize("size,group_size,rounds", [
-    (307200, 128, 4000),
-    (1536000, 128, 800),
-    (3072000, 128, 400),
+
+@pytest.mark.parametrize("size,gen,ngroups,group_size", [
+    (307200, partial(np.random.randint, 0, 1000), 16, 128),
+    (307200, partial(np.random.randint, 0, 307200), 16, 128),
+    (307200, np.arange, 16, 128),
 ])
-def test_scanner(cl_env, scan_program, size, group_size, rounds, benchmark):
+def test_sort_keys(cl_env, radix_program, scan_program, value_dtype,
+                   size, gen, ngroups, group_size, benchmark):
     ctx, cq = cl_env
-    scanner = PrefixScanner(ctx, size, group_size, program=scan_program)
+    sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
+                         program=radix_program, scan_program=scan_program)
 
-    values = np.random.randint(0, 128, size=size, dtype='uint32')
-    expected = np.cumsum(values)
+    keys = gen(size, dtype=value_dtype)
+    expected = np.sort(keys)
 
-    values_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE, values.nbytes)
+    keys_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
+    )
+    out_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
 
-    calc_scan = benchmark.pedantic(prefix_sum, (cq, scanner, values_buf),
-                                   setup=partial(prefix_sum_setup, cq, values_buf, values),
-                                   rounds=rounds, warmup_rounds=10)
+    benchmark(sort_keys, cq, sorter, keys_buf, out_buf)
 
-    (values_map, _) = cl.enqueue_map_buffer(
-        cq, values_buf, cl.map_flags.READ,
-        0, values.shape, values.dtype,
+    (out_map, _) = cl.enqueue_map_buffer(
+        cq, out_buf, cl.map_flags.READ,
+        0, keys.shape, keys.dtype,
         wait_for=[], is_blocking=True
     )
-    assert values_map[0] == 0
-    np.testing.assert_equal(values_map[1:], expected[:-1])
+    np.testing.assert_equal(out_map, expected)
+
+
+@pytest.mark.parametrize("size,gen,ngroups,group_size", [
+    (307200, partial(np.random.randint, 0, 1000), 16, 128),
+    (307200, partial(np.random.randint, 0, 307200), 16, 128),
+    (307200, np.arange, 16, 128),
+])
+def test_sort_values(cl_env, radix_program, scan_program, value_dtype,
+                     size, gen, ngroups, group_size, benchmark):
+    ctx, cq = cl_env
+    sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
+                         program=radix_program, scan_program=scan_program)
+
+    keys = gen(size, dtype=value_dtype)
+    values = np.arange(size, dtype=value_dtype)
+    expected_keys = np.sort(keys)
+    expected_values = values[np.argsort(keys, kind='mergesort')]
+
+    keys_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
+    )
+    out_keys_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
+
+    values_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
+    )
+    out_values_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, values.nbytes)
+
+    benchmark(sort_keys, cq, sorter, keys_buf, out_keys_buf, values_buf, out_values_buf)
+
+    for out_buf, expected in [(out_keys_buf, expected_keys),
+                              (out_values_buf, expected_values)]:
+        (out_map, _) = cl.enqueue_map_buffer(
+            cq, out_buf, cl.map_flags.READ,
+            0, expected.shape, expected.dtype,
+            wait_for=[], is_blocking=True
+        )
+        np.testing.assert_equal(out_map, expected)
