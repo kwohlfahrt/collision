@@ -16,8 +16,10 @@ def scan_kernels(cl_env):
     ctx, cq = cl_env
 
     src = Path(__file__).parent / ".." / "collision" / "scan.cl"
+    buildopts = ["-I {}".format(src.parent)]
+
     with src.open("r") as f:
-        program = cl.Program(ctx, f.read()).build()
+        program = cl.Program(ctx, f.read()).build(' '.join(buildopts))
     kernels = {name: getattr(program, name) for name in kernel_args}
     for name, kernel in kernels.items():
         kernel.set_scalar_arg_dtypes(kernel_args[name])
