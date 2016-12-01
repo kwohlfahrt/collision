@@ -16,7 +16,7 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture(scope='module')
 def radix_kernels(cl_env, request, value_dtype):
     kernel_args = {'block_sort': [None, None, None, None, None, None,
-                                  np.dtype('int8'), np.dtype('int8')],}
+                                  np.dtype('uint8'), np.dtype('uint8')],}
     c_dtypes = {'uint32': 'int', 'uint64': 'long'}
     ctx, cq = cl_env
 
