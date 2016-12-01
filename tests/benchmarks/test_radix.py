@@ -32,6 +32,7 @@ def radix_sort(cq, sorter, *args):
     cl.wait_for_events([sorter.sort(cq, *args)])
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,gen,ngroups,group_size,rounds", [
     (307200, partial(np.random.randint, 0, 1000), 16, 128, 100),
     (307200, partial(np.random.randint, 0, 307200), 16, 128, 100),
@@ -63,6 +64,7 @@ def test_radix_sort(cl_env, radix_program, scan_program, value_dtype,
     np.testing.assert_equal(out_map, expected)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,gen,ngroups,group_size,rounds", [
     (307200, partial(np.random.randint, 0, 1000), 16, 128, 100),
     (307200, partial(np.random.randint, 0, 307200), 16, 128, 100),

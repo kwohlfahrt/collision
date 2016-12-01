@@ -41,6 +41,7 @@ def test_padded_size(cl_env, collision_programs, coord_dtype, size, sorter_shape
     assert collider.padded_size == expected
 
 
+@pytest.mark.skip
 def test_collision(cl_env, coord_dtype, collision_programs):
     ctx, cq = cl_env
 
@@ -85,6 +86,7 @@ def test_collision(cl_env, coord_dtype, collision_programs):
     assert set(map(tuple, collisions_map)) == expected
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
                                                (100,(5,4)), (256,(4,32)),
                                                (317, (4, 16)), (341, (4, 64))])
@@ -131,6 +133,7 @@ def test_random_collision(cl_env, coord_dtype, collision_programs, size, sorter_
     assert collisions == expected
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("old_shape,new_shape", [((5,(5,1)), (20,(5,4))),
                                                  ((350, (8, 64)), (351, (8, 64))),
                                                  ((350, (8, 64)), (351, (None, None)))])
@@ -180,6 +183,7 @@ def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_s
     assert collisions == expected
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,sorter_shape", [(5,(5,1))])
 def test_auto_program(cl_env, coord_dtype, size, sorter_shape):
     ctx, cq = cl_env
@@ -224,6 +228,7 @@ def test_auto_program(cl_env, coord_dtype, size, sorter_shape):
     assert collisions == expected
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,sorter_shape", [(100,(5,4))])
 def test_count_only(cl_env, coord_dtype, collision_programs, size, sorter_shape):
     ctx, cq = cl_env

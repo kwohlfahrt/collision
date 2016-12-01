@@ -6,9 +6,7 @@ from .scan import PrefixScanProgram, PrefixScanner
 
 class RadixProgram(Program):
     src = Path(__file__).parent / "radix.cl"
-    kernel_args = {'histogram': [None, None, None, dtype('int32'), dtype('int8'), dtype('int8')],
-                   'scatter': [None, None, None, None, dtype('int32'),
-                               None, None, dtype('int8'), dtype('int8')],}
+    kernel_args = {'block_sort': [None, None, None, None, dtype('int8'), dtype('int8')],}
 
     def __init__(self, ctx, value_dtype=dtype('uint32')):
         value_dtype = dtype(value_dtype)

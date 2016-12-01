@@ -52,6 +52,7 @@ def test_num_passes(cl_env, sort_program, scan_program, value_dtype, bits, expec
     assert sorter.num_passes == expected
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,ngroups,group_size", [(16000,10,32), (20,5,4)])
 def test_sorter(cl_env, sort_program, scan_program, value_dtype, size, ngroups, group_size):
     ctx, cq = cl_env
@@ -75,6 +76,7 @@ def test_sorter(cl_env, sort_program, scan_program, value_dtype, size, ngroups, 
     np.testing.assert_equal(out_map, np.sort(data))
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("old_shape,new_shape", [
     ((16000,10,32), (20,5,4)),
     ((20,5,4), (16000,10,32)),
@@ -104,6 +106,7 @@ def test_sorter_resized(cl_env, sort_program, scan_program, value_dtype, old_sha
     np.testing.assert_equal(out_map, np.sort(data))
 
 
+@pytest.mark.skip
 def test_arg_sorter(cl_env, sort_program, scan_program, value_dtype):
     ctx, cq = cl_env
     group_size = 32
@@ -145,6 +148,7 @@ def test_arg_sorter(cl_env, sort_program, scan_program, value_dtype):
     np.testing.assert_equal(out_values_map, values[np.argsort(keys, kind='mergesort')])
 
 
+@pytest.mark.skip
 def test_auto_program(cl_env):
     ctx, cq = cl_env
     group_size = 32
