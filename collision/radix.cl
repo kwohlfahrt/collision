@@ -41,16 +41,21 @@ void local_scatter(const local unsigned DTYPE * const keys, local unsigned DTYPE
 }
 
 kernel void block_sort(global unsigned DTYPE * const keys,
+                       global unsigned int * const histogram,
                        local unsigned DTYPE * in_local_keys,
                        local unsigned DTYPE * out_local_keys,
+                       local unsigned int * const local_histogram,
                        local unsigned int * const count,
                        const unsigned char radix_bits, const unsigned char pass) {
     // # of elements processed by workgroup
     const size_t group_size = get_local_size(0) * 2;
     const size_t group_start = group_size * get_group_id(0);
-
+    const size_t histogram_len = 1 << radix_bits;
     event_t copy;
+
     copy = async_work_group_copy(in_local_keys, keys + group_start, group_size, 0);
+    for (size_t i = get_local_id(0); i < histogram_len; i+= get_local_size(0))
+        local_histogram[i] = 0;
     wait_group_events(1, &copy);
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -65,6 +70,12 @@ kernel void block_sort(global unsigned DTYPE * const keys,
         out_local_keys = tmp;
     }
 
+    for (size_t i = get_local_id(0); i < group_size; i += get_local_size(0))
+        atomic_inc(&local_histogram[radix_key(in_local_keys[i], radix_bits, pass)]);
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     copy = async_work_group_copy(keys + group_start, in_local_keys, group_size, 0);
+    copy = async_work_group_strided_copy(histogram + get_group_id(0), local_histogram,
+                                         histogram_len, get_num_groups(0), copy);
     wait_group_events(1, &copy);
 }

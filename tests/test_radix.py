@@ -15,7 +15,8 @@ def pytest_generate_tests(metafunc):
 
 @pytest.fixture(scope='module')
 def radix_kernels(cl_env, request, value_dtype):
-    kernel_args = {'block_sort': [None, None, None, None, np.dtype('int8'), np.dtype('int8')],}
+    kernel_args = {'block_sort': [None, None, None, None, None, None,
+                                  np.dtype('int8'), np.dtype('int8')],}
     c_dtypes = {'uint32': 'int', 'uint64': 'long'}
     ctx, cq = cl_env
 
@@ -41,12 +42,17 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
     ctx, cq = cl_env
 
     radix_bits = 4
+    histogram_len = 2 ** radix_bits
 
     keys = np.random.randint(0, 64, size=(ngroups, group_size * 2), dtype=value_dtype)
 
     keys_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE, keys.nbytes)
+    histogram_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE,
+                              ngroups * histogram_len * np.dtype('uint32').itemsize)
+
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
 
     for radix_pass in range(keys.dtype.itemsize // radix_bits):
         (keys_map, _) = cl.enqueue_map_buffer(
@@ -58,8 +64,8 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
 
         e = radix_kernels['block_sort'](
             cq, (ngroups,), (group_size,),
-            keys_buf, local_keys, local_keys, count, radix_bits, radix_pass,
-            g_times_l=True,
+            keys_buf, histogram_buf, local_keys, local_keys, local_histogram, count,
+            radix_bits, radix_pass, g_times_l=True,
         )
 
         keys = keys.reshape(ngroups, group_size * 2)
@@ -72,5 +78,14 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
             cq, keys_buf, cl.map_flags.READ, 0,
             (ngroups, group_size * 2), keys.dtype, wait_for=[e], is_blocking=True
         )
-
         np.testing.assert_equal(keys_map, expected)
+
+        (histogram_map, _) = cl.enqueue_map_buffer(
+            cq, histogram_buf, cl.map_flags.READ, 0,
+            (histogram_len, ngroups), np.dtype('uint32'), wait_for=[e], is_blocking=True
+        )
+
+        for group_keys, histogram in zip(keys, histogram_map.T):
+            group_keys = radix_key(group_keys, radix_bits, radix_pass).astype('uint16')
+            expected = np.bincount(group_keys, minlength=16)
+            np.testing.assert_equal(histogram, expected)
