@@ -58,7 +58,7 @@ class RadixSorter:
                              .format(size, group_size, ngroups))
         if (value_dtype.itemsize * 8) % radix_bits:
             raise ValueError("Radix bits ({}) must evenly divide item-size ({})"
-                             .format(radix_bits, value_dtype.itemsize))
+                             .format(radix_bits, value_dtype.itemsize * 8))
 
     def resize(self, size=None, ngroups=None, group_size=None, radix_bits=None):
         ctx = self.program.context
