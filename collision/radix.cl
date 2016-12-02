@@ -96,8 +96,8 @@ kernel void scatter(const global unsigned DTYPE * const keys,
 
     copy = async_work_group_strided_copy(local_offset, offset + get_group_id(0),
                                          histogram_len, get_num_groups(0), 0);
-    copy = async_work_group_copy(local_histogram, histogram + histogram_start,
-                                 histogram_len, copy);
+    copy = async_work_group_strided_copy(local_histogram, histogram + get_group_id(0),
+                                         histogram_len, get_num_groups(0), copy);
     wait_group_events(1, &copy);
     barrier(CLK_LOCAL_MEM_FENCE);
 
