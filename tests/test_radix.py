@@ -98,8 +98,7 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
 
 
 # group_size must be power of 2 (for scan to work)
-# FIXME: group_size must be 8 for histogram scan
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8)])
+@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8), (8, 32)])
 def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 

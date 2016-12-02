@@ -1,5 +1,6 @@
-void up_sweep(local unsigned int * data) {
-    for (size_t i = get_local_size(0), o = 1; i > 0; i /= 2, o *= 2) {
+// n <= 2 * local_size and a power of two
+void up_sweep(local unsigned int * data, const size_t n) {
+    for (size_t i = n / 2, o = 1; i > 0; i /= 2, o *= 2) {
         if (get_local_id(0) < i) {
             size_t a = o * (2 * get_local_id(0) + 1) - 1;
             size_t b = o * (2 * get_local_id(0) + 2) - 1;
@@ -9,8 +10,8 @@ void up_sweep(local unsigned int * data) {
     }
 }
 
-void down_sweep(local unsigned int * data) {
-    for (size_t i = 1, o = get_local_size(0); i < get_local_size(0) * 2; i *= 2, o /= 2) {
+void down_sweep(local unsigned int * data, const size_t n) {
+    for (size_t i = 1, o = n / 2; i < n; i *= 2, o /= 2) {
         if (get_local_id(0) < i) {
             size_t a = o * (2 * get_local_id(0) + 1) - 1;
             size_t b = o * (2 * get_local_id(0) + 2) - 1;

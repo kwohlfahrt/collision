@@ -16,13 +16,13 @@ unsigned int local_bin(const local unsigned DTYPE * const keys, local unsigned i
         count[i] = radix_key(keys[i], 1, pass);
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    up_sweep(count);
+    up_sweep(count, size);
 
     unsigned int sum = count[size - 1];
     count[size - 1] = 0;
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    down_sweep(count);
+    down_sweep(count, size);
 
     return size - sum;
 }
@@ -101,11 +101,10 @@ kernel void scatter(const global unsigned DTYPE * const keys,
     wait_group_events(1, &copy);
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // FIXME: This isn't correct if local_size != 2 ** radix_bits / 2
-    up_sweep(local_histogram);
+    up_sweep(local_histogram, histogram_len);
     local_histogram[histogram_len - 1] = 0;
     barrier(CLK_LOCAL_MEM_FENCE);
-    down_sweep(local_histogram);
+    down_sweep(local_histogram, histogram_len);
 
     for (size_t i = get_local_id(0); i < group_size; i += get_local_size(0)) {
         const unsigned DTYPE key = radix_key(keys[group_start+i], radix_bits, pass);

@@ -14,7 +14,7 @@ kernel void local_scan(global unsigned int * const data,
     wait_group_events(1, &copy);
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    up_sweep(local_data);
+    up_sweep(local_data, group_size);
 
     if (get_local_id(0) == 0) {
         if (block_sums != NULL)
@@ -23,7 +23,7 @@ kernel void local_scan(global unsigned int * const data,
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    down_sweep(local_data);
+    down_sweep(local_data, group_size);
 
     copy = async_work_group_copy(data + group_start, local_data, group_size, 0);
     wait_group_events(1, &copy);
