@@ -79,3 +79,37 @@ kernel void block_sort(global unsigned DTYPE * const keys,
                                          histogram_len, get_num_groups(0), copy);
     wait_group_events(1, &copy);
 }
+
+kernel void scatter(const global unsigned DTYPE * const keys,
+                    global unsigned DTYPE * const out_keys,
+                    const global unsigned int * const offset,
+                    local unsigned int * const local_offset,
+                    const global unsigned int * const histogram,
+                    local unsigned int * const local_histogram,
+                    const unsigned char radix_bits, const unsigned char pass) {
+    // # of elements processed by workgroup
+    const size_t group_size = get_local_size(0) * 2;
+    const size_t group_start = group_size * get_group_id(0);
+    const size_t histogram_len = 1 << radix_bits;
+    const size_t histogram_start = histogram_len * get_group_id(0);
+    event_t copy;
+
+    copy = async_work_group_strided_copy(local_offset, offset + get_group_id(0),
+                                         histogram_len, get_num_groups(0), 0);
+    copy = async_work_group_copy(local_histogram, histogram + histogram_start,
+                                 histogram_len, copy);
+    wait_group_events(1, &copy);
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // FIXME: This isn't correct if local_size != 2 ** radix_bits / 2
+    up_sweep(local_histogram);
+    local_histogram[histogram_len - 1] = 0;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    down_sweep(local_histogram);
+
+    for (size_t i = get_local_id(0); i < group_size; i += get_local_size(0)) {
+        const unsigned DTYPE key = radix_key(keys[group_start+i], radix_bits, pass);
+        const unsigned int new_idx = local_offset[key] + i - local_histogram[key];
+        out_keys[new_idx] = keys[group_start+i];
+    }
+}

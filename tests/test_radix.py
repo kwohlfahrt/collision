@@ -12,11 +12,17 @@ def pytest_generate_tests(metafunc):
     if 'value_dtype' in metafunc.fixturenames:
         metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
 
+def prefix_sum(x, axis=None):
+    r = np.zeros_like(x)
+    r[1:] = np.cumsum(x, axis)[:-1]
+    return r
 
 @pytest.fixture(scope='module')
 def radix_kernels(cl_env, request, value_dtype):
     kernel_args = {'block_sort': [None, None, None, None, None, None,
-                                  np.dtype('uint8'), np.dtype('uint8')],}
+                                  np.dtype('uint8'), np.dtype('uint8')],
+                   'scatter': [None, None, None, None, None, None,
+                               np.dtype('uint8'), np.dtype('uint8')]}
     c_dtypes = {'uint32': 'int', 'uint64': 'long'}
     ctx, cq = cl_env
 
@@ -89,3 +95,53 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
             group_keys = radix_key(group_keys, radix_bits, radix_pass).astype('uint16')
             expected = np.bincount(group_keys, minlength=16)
             np.testing.assert_equal(histogram, expected)
+
+
+# group_size must be power of 2 (for scan to work)
+# FIXME: group_size must be 8 for histogram scan
+@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8)])
+def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
+    ctx, cq = cl_env
+
+    radix_bits = 4
+    radix_pass = 0
+    histogram_len = 2 ** radix_bits
+
+    keys = np.random.randint(0, 64, size=(ngroups, group_size * 2), dtype=value_dtype)
+    radix_keys = radix_key(keys, radix_bits, radix_pass).astype('uint16')
+
+    order = np.argsort(radix_keys, kind='mergesort')
+    grid = np.ogrid[tuple(slice(0, s) for s in keys.shape)]
+    keys = keys[grid[:-1] + [order]] # Partially sort
+    radix_keys = radix_key(keys, radix_bits, radix_pass).astype('uint16')
+
+    histogram = np.array([np.bincount(group_keys, minlength=16)
+                          for group_keys in radix_keys], dtype='uint32').T
+    offset = prefix_sum(histogram.reshape(-1))
+
+    keys_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
+    )
+    out_keys_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
+    histogram_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=histogram
+    )
+    offset_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=offset
+    )
+    local_offset = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
+    local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
+
+    e = radix_kernels['scatter'](
+        cq, (ngroups,), (group_size,),
+        keys_buf, out_keys_buf, offset_buf, local_offset, histogram_buf, local_histogram,
+        radix_bits, radix_pass, g_times_l=True,
+    )
+
+    (keys_map, _) = cl.enqueue_map_buffer(
+        cq, out_keys_buf, cl.map_flags.READ, 0,
+        (ngroups, group_size * 2), keys.dtype, wait_for=[e], is_blocking=True
+    )
+
+    expected = keys.flat[np.argsort(radix_keys, axis=None, kind='mergesort')]
+    np.testing.assert_equal(keys_map, expected.reshape(ngroups, 2 * group_size))
