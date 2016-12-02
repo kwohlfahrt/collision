@@ -43,7 +43,7 @@ def radix_key(values, radix_bits, radix_pass):
 
 
 # group_size must be power of 2 (for scan to work)
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (4, 8), (8, 32)])
+@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (3, 8), (4, 8), (8, 32)])
 def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
@@ -98,7 +98,7 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
 
 
 # group_size must be power of 2 (for scan to work)
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8), (8, 32)])
+@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (3, 8), (4, 8), (8, 32)])
 def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
@@ -160,7 +160,7 @@ def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
         np.testing.assert_equal(keys_map, expected.reshape(ngroups, 2 * group_size))
 
 
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8), (8, 32)])
+@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8), (3, 8), (8, 32)])
 def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
