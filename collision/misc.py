@@ -18,3 +18,6 @@ class Program:
 
 def roundUp(x, base=1):
   return (x // base + bool(x % base)) * base
+
+def nextPowerOf2(x):
+    return 2 ** (x - 1).bit_length()

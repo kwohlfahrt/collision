@@ -2,7 +2,7 @@ from numpy import dtype, zeros
 from pathlib import Path
 import pyopencl as cl
 from itertools import tee, zip_longest
-from .misc import Program, roundUp
+from .misc import Program, roundUp, nextPowerOf2
 
 def ceildiv(a, b):
     return (a + b - 1) // b
@@ -33,7 +33,7 @@ class PrefixScanner:
 
     @staticmethod
     def check_size(size, group_size):
-        if group_size != 2 ** (group_size.bit_length() - 1):
+        if group_size != nextPowerOf2(group_size):
             raise ValueError("Group size ({}) must be a power of two".format(group_size))
         if size % (group_size * 2):
             raise ValueError("Size must be multiple of 2 * group_size ({})".format(group_size))
@@ -69,10 +69,7 @@ class PrefixScanner:
             size = roundUp(size, self.group_size * 2)
             block_sizes.append(size)
             size = ceildiv(size, self.group_size * 2)
-        # Round to next power of 2
-        if size != 2 ** (size.bit_length() - 1):
-            size = 2 ** size.bit_length()
-        block_sizes.append(size)
+        block_sizes.append(nextPowerOf2(size))
         return tuple(block_sizes)
 
     def prefix_sum(self, cq, values_buf, wait_for=None):
