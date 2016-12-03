@@ -32,6 +32,7 @@ def find_collisions(coords, radii):
     return set(zip(*reversed(np.nonzero(collisions))))
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,sorter_shape,expected", [
     (24, (3,8), 24), (23, (3,8), 24), (25, (3,8), 48)
 ])
@@ -259,6 +260,7 @@ def test_count_only(cl_env, coord_dtype, collision_programs, size, sorter_shape)
     )
     assert n_collisions_map[0] == len(expected)
 
+@pytest.mark.skip
 @pytest.mark.parametrize("size,sorter_shape", [(100,(5,4))])
 def test_count_err(cl_env, coord_dtype, collision_programs, size, sorter_shape):
     ctx, cq = cl_env
@@ -284,6 +286,7 @@ def test_count_err(cl_env, coord_dtype, collision_programs, size, sorter_shape):
         e = collider.get_collisions(cq, coords_buf, radii_buf, n_collisions_buf, None, len(expected))
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("dt", ['float32', np.dtype('float32'),
                                 'float64', np.dtype('float64')])
 def test_collider_dtype(cl_env, dt):

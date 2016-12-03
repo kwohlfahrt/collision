@@ -18,23 +18,26 @@ def sort_program(cl_env, scan_program, value_dtype):
     return RadixProgram(ctx, value_dtype)
 
 
-@pytest.mark.parametrize("size,ngroups,group_size,bits", [(24, 3, 4, 3), (24, 4, 4, 4),])
-def test_sorter_errs(cl_env, sort_program, scan_program, size, ngroups, group_size, bits):
+@pytest.mark.parametrize("size,group_size,bits", [
+    (128, 8, 3), (128, 9, 4), (122, 8, 4), (128, 4, 4)
+])
+def test_sorter_errs(cl_env, sort_program, scan_program, value_dtype,
+                     size, group_size, bits):
     ctx, cq = cl_env
     with pytest.raises(ValueError):
-        sorter = RadixSorter(ctx, size, ngroups, group_size, bits,
-                             dtype, sort_program, scan_program)
+        sorter = RadixSorter(ctx, size, group_size, bits,
+                            value_dtype, sort_program, scan_program)
 
 
 def test_dtype_errs(cl_env, scan_program, sort_program, value_dtype):
     ctx, cq = cl_env
     sorter_dtype = {'uint32': 'uint64', 'uint64': 'uint32'}[value_dtype]
     with pytest.raises(ValueError):
-        sorter = RadixSorter(ctx, 32, 4, 8, value_dtype=sorter_dtype,
+        sorter = RadixSorter(ctx, 128, 8, 4, value_dtype=sorter_dtype,
                              program=sort_program, scan_program=scan_program)
 
 
-@pytest.mark.parametrize("old_shape,new_shape", [((24, 3, 4, 4), (24, 4, 4, 4))])
+@pytest.mark.parametrize("old_shape,new_shape", [((64, 8, 4), (64, 5, 4))])
 def test_sorter_resize_errs(cl_env, sort_program, scan_program, value_dtype, old_shape, new_shape):
     ctx, cq = cl_env
     sorter = RadixSorter(ctx, *old_shape, value_dtype=value_dtype,
@@ -43,20 +46,22 @@ def test_sorter_resize_errs(cl_env, sort_program, scan_program, value_dtype, old
         sorter.resize(*new_shape)
 
 
-@pytest.mark.parametrize("bits,expected", [(1, 32), (2, 16), (4, 8), (8, 4)])
-def test_num_passes(cl_env, sort_program, scan_program, value_dtype, bits, expected):
+@pytest.mark.parametrize("bits,group_size,expected", [
+    (1, 4, 32), (2, 4, 16), (4, 8, 8), (8, 128, 4)
+])
+def test_num_passes(cl_env, sort_program, scan_program, value_dtype,
+                    bits, group_size, expected):
     ctx, cq = cl_env
-    sorter = RadixSorter(ctx, 24, 3, 4, bits, value_dtype, sort_program, scan_program)
+    sorter = RadixSorter(ctx, 512, group_size, bits, value_dtype, sort_program, scan_program)
     if value_dtype == np.dtype('uint64'):
         expected *= 2
     assert sorter.num_passes == expected
 
 
-@pytest.mark.skip
-@pytest.mark.parametrize("size,ngroups,group_size", [(16000,10,32), (20,5,4)])
-def test_sorter(cl_env, sort_program, scan_program, value_dtype, size, ngroups, group_size):
+@pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32)])
+def test_sorter(cl_env, sort_program, scan_program, value_dtype, size, group_size):
     ctx, cq = cl_env
-    sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
+    sorter = RadixSorter(ctx, size, group_size, value_dtype=value_dtype,
                          program=sort_program, scan_program=scan_program)
     data = np.random.randint(500, size=size, dtype=value_dtype)
     data_buf = cl.Buffer(
@@ -76,10 +81,8 @@ def test_sorter(cl_env, sort_program, scan_program, value_dtype, size, ngroups, 
     np.testing.assert_equal(out_map, np.sort(data))
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("old_shape,new_shape", [
-    ((16000,10,32), (20,5,4)),
-    ((20,5,4), (16000,10,32)),
+    ((15360,32), (32,8)), ((32,8), (15360,32)),
 ])
 def test_sorter_resized(cl_env, sort_program, scan_program, value_dtype, old_shape, new_shape):
     ctx, cq = cl_env
@@ -148,10 +151,8 @@ def test_arg_sorter(cl_env, sort_program, scan_program, value_dtype):
     np.testing.assert_equal(out_values_map, values[np.argsort(keys, kind='mergesort')])
 
 
-@pytest.mark.skip
 def test_auto_program(cl_env):
     ctx, cq = cl_env
     group_size = 32
-    ngroups = 10
-    size = group_size * ngroups * 50
-    sorter = RadixSorter(ctx, size, ngroups, group_size)
+    size = group_size * 64
+    sorter = RadixSorter(ctx, size, group_size)
