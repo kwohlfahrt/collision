@@ -21,9 +21,9 @@ sizes = [(1, 8), (3, 8), (4, 8), (8, 32), (16, 128)]
 
 @pytest.fixture(scope='module')
 def radix_kernels(cl_env, request, value_dtype):
-    kernel_args = {'block_sort': [None, None, None, None, None, None,
+    kernel_args = {'block_sort': [None, None, None, None, None, None, None, None, None,
                                   np.dtype('uint8'), np.dtype('uint8')],
-                   'scatter': [None, None, None, None, None, None,
+                   'scatter': [None, None, None, None, None, None, None, None,
                                np.dtype('uint8'), np.dtype('uint8')]}
     c_dtypes = {'uint32': 'int', 'uint64': 'long'}
     ctx, cq = cl_env
@@ -59,6 +59,7 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
                               ngroups * histogram_len * np.dtype('uint32').itemsize)
 
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
 
@@ -72,7 +73,8 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
 
         e = radix_kernels['block_sort'](
             cq, (ngroups,), (group_size,),
-            keys_buf, histogram_buf, local_keys, local_keys, local_histogram, count,
+            keys_buf, local_keys, local_keys, None, local_values, local_values,
+            histogram_buf, local_histogram, count,
             radix_bits, radix_pass, g_times_l=True,
         )
 
@@ -153,7 +155,8 @@ def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
 
         e = radix_kernels['scatter'](
             cq, (ngroups,), (group_size,),
-            keys_buf, out_keys_buf, offset_buf, local_offset, histogram_buf, local_histogram,
+            keys_buf, out_keys_buf, None, None,
+            offset_buf, local_offset, histogram_buf, local_histogram,
             radix_bits, radix_pass, g_times_l=True,
         )
 
@@ -186,6 +189,7 @@ def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
                            ngroups * histogram_len * np.dtype('uint32').itemsize)
 
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     local_offset = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
     local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
@@ -193,7 +197,8 @@ def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     for radix_pass in range(keys.dtype.itemsize * 8 // radix_bits):
         e = radix_kernels['block_sort'](
             cq, (ngroups,), (group_size,),
-            keys_buf, histogram_buf, local_keys, local_keys, local_histogram, count,
+            keys_buf, local_keys, local_keys, None, local_values, local_values,
+            histogram_buf, local_histogram, count,
             radix_bits, radix_pass, g_times_l=True,
         )
         e = cl.enqueue_copy(
@@ -210,7 +215,8 @@ def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
 
         e = radix_kernels['scatter'](
             cq, (ngroups,), (group_size,),
-            keys_buf, out_keys_buf, offset_buf, local_offset, histogram_buf, local_histogram,
+            keys_buf, out_keys_buf, None, None,
+            offset_buf, local_offset, histogram_buf, local_histogram,
             radix_bits, radix_pass, g_times_l=True,
         )
         e = cl.enqueue_copy(
@@ -232,3 +238,99 @@ def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     )
     np.testing.assert_equal(keys_map, keys[np.argsort(keys, kind='mergesort')])
     del keys_map
+
+
+@pytest.mark.parametrize("ngroups,group_size", sizes)
+def test_argsort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
+    ctx, cq = cl_env
+
+    radix_bits = 4
+    histogram_len = 2 ** radix_bits
+
+    sort_keys = keys = np.random.randint(0, 64, size=ngroups * group_size * 2, dtype=value_dtype)
+    sort_values = values = np.random.randint(0, 256, size=ngroups * group_size * 2, dtype=value_dtype)
+
+    keys_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
+    )
+    out_keys_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
+    values_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
+    )
+    out_values_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, values.nbytes)
+    histogram_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE,
+                              ngroups * histogram_len * np.dtype('uint32').itemsize)
+    offset_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE,
+                           ngroups * histogram_len * np.dtype('uint32').itemsize)
+
+    local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    local_offset = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
+    local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
+
+    for radix_pass in range(keys.dtype.itemsize * 8 // radix_bits):
+        e = radix_kernels['block_sort'](
+            cq, (ngroups,), (group_size,),
+            keys_buf, local_keys, local_keys, values_buf, local_values, local_values,
+            histogram_buf, local_histogram, count,
+            radix_bits, radix_pass, g_times_l=True,
+        )
+        e = cl.enqueue_copy(
+            cq, offset_buf, histogram_buf, wait_for=[e],
+            byte_count=ngroups * histogram_len * np.dtype('uint32').itemsize,
+        )
+        (offset_map, _) = cl.enqueue_map_buffer(
+            cq, offset_buf, cl.map_flags.READ | cl.map_flags.WRITE, 0,
+            (histogram_len, ngroups),  np.dtype('uint32'),
+            wait_for=[e], is_blocking=True,
+        )
+        offset_map[...] = prefix_sum(offset_map.flat).reshape(histogram_len, ngroups)
+        del offset_map
+
+        e = radix_kernels['scatter'](
+            cq, (ngroups,), (group_size,),
+            keys_buf, out_keys_buf, values_buf, out_values_buf,
+            offset_buf, local_offset, histogram_buf, local_histogram,
+            radix_bits, radix_pass, g_times_l=True,
+        )
+        e = cl.enqueue_copy(
+            cq, keys_buf, out_keys_buf, byte_count=keys.nbytes, wait_for=[e]
+        )
+        e = cl.enqueue_copy(
+            cq, values_buf, out_values_buf, byte_count=values.nbytes, wait_for=[e]
+        )
+
+        radix_keys = radix_key(sort_keys, radix_bits, radix_pass)
+        order = np.argsort(radix_keys, kind='mergesort')
+        sort_keys = sort_keys[order]
+        (keys_map, _) = cl.enqueue_map_buffer(
+            cq, keys_buf, cl.map_flags.READ, 0,
+            len(keys), keys.dtype, wait_for=[e], is_blocking=True,
+        )
+        np.testing.assert_equal(keys_map, sort_keys)
+        del keys_map
+
+        sort_values = sort_values[order]
+        (values_map, _) = cl.enqueue_map_buffer(
+            cq, values_buf, cl.map_flags.READ, 0,
+            len(values), values.dtype, wait_for=[e], is_blocking=True,
+        )
+        np.testing.assert_equal(values_map, sort_values)
+        del values_map
+
+    order = np.argsort(keys, kind='mergesort')
+
+    (keys_map, _) = cl.enqueue_map_buffer(
+        cq, keys_buf, cl.map_flags.READ, 0,
+        len(keys), keys.dtype, wait_for=[e], is_blocking=True,
+    )
+    np.testing.assert_equal(keys_map, keys[order])
+    del keys_map
+
+    (values_map, _) = cl.enqueue_map_buffer(
+        cq, values_buf, cl.map_flags.READ, 0,
+        len(values), values.dtype, wait_for=[e], is_blocking=True,
+    )
+    np.testing.assert_equal(values_map, values[order])
+    del values_map

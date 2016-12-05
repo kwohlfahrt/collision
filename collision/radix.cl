@@ -30,6 +30,7 @@ unsigned int local_bin(const local unsigned DTYPE * const keys, local unsigned i
 }
 
 void local_scatter(const local unsigned DTYPE * const keys, local unsigned DTYPE * const out_keys,
+                   const local unsigned DTYPE * const values, local unsigned DTYPE * const out_values,
                    const local unsigned int * count, const unsigned int offset,
                    const unsigned char pass) {
     size_t size = get_local_size(0) * 2;
@@ -39,13 +40,18 @@ void local_scatter(const local unsigned DTYPE * const keys, local unsigned DTYPE
         unsigned int new_key = key ? offset + count[i] : i - count[i];
 
         out_keys[new_key] = keys[i];
+        if (values != NULL)
+            out_values[new_key] = values[i];
     }
 }
 
 kernel void block_sort(global unsigned DTYPE * const keys,
-                       global unsigned int * const histogram,
                        local unsigned DTYPE * in_local_keys,
                        local unsigned DTYPE * out_local_keys,
+                       global unsigned DTYPE * const values,
+                       local unsigned DTYPE * in_local_values,
+                       local unsigned DTYPE * out_local_values,
+                       global unsigned int * const histogram,
                        local unsigned int * const local_histogram,
                        local unsigned int * const count,
                        const unsigned char radix_bits, const unsigned char pass) {
@@ -56,6 +62,10 @@ kernel void block_sort(global unsigned DTYPE * const keys,
     event_t copy;
 
     copy = async_work_group_copy(in_local_keys, keys + group_start, group_size, 0);
+    if (values != NULL)
+        copy = async_work_group_copy(in_local_values, values + group_start, group_size, copy);
+    else
+        in_local_values = out_local_values = NULL;
     for (size_t i = get_local_id(0); i < histogram_len; i+= get_local_size(0))
         local_histogram[i] = 0;
     wait_group_events(1, &copy);
@@ -64,12 +74,19 @@ kernel void block_sort(global unsigned DTYPE * const keys,
     for (unsigned char i = 0; i < radix_bits; i++) {
         const unsigned int offset = local_bin(in_local_keys, count, radix_bits * pass + i);
 
-        local_scatter(in_local_keys, out_local_keys, count, offset, radix_bits * pass + i);
+        local_scatter(in_local_keys, out_local_keys, in_local_values, out_local_values,
+                      count, offset, radix_bits * pass + i);
         barrier(CLK_LOCAL_MEM_FENCE);
 
         local unsigned DTYPE * const tmp = in_local_keys;
         in_local_keys = out_local_keys;
         out_local_keys = tmp;
+
+        if (values != NULL) {
+            local unsigned DTYPE * const tmp = in_local_values;
+            in_local_values = out_local_values;
+            out_local_values = tmp;
+        }
     }
 
     for (size_t i = get_local_id(0); i < group_size; i += get_local_size(0))
@@ -77,6 +94,8 @@ kernel void block_sort(global unsigned DTYPE * const keys,
     barrier(CLK_LOCAL_MEM_FENCE);
 
     copy = async_work_group_copy(keys + group_start, in_local_keys, group_size, 0);
+    if (values != NULL)
+        copy = async_work_group_copy(values + group_start, in_local_values, group_size, copy);
     copy = async_work_group_strided_copy(histogram + get_group_id(0), local_histogram,
                                          histogram_len, get_num_groups(0), copy);
     wait_group_events(1, &copy);
@@ -84,6 +103,8 @@ kernel void block_sort(global unsigned DTYPE * const keys,
 
 kernel void scatter(const global unsigned DTYPE * const keys,
                     global unsigned DTYPE * const out_keys,
+                    const global unsigned DTYPE * const values,
+                    global unsigned DTYPE * const out_values,
                     const global unsigned int * const offset,
                     local unsigned int * const local_offset,
                     const global unsigned int * const histogram,
@@ -112,5 +133,7 @@ kernel void scatter(const global unsigned DTYPE * const keys,
         const unsigned DTYPE key = radix_key(keys[group_start+i], radix_bits, pass);
         const unsigned int new_idx = local_offset[key] + i - local_histogram[key];
         out_keys[new_idx] = keys[group_start+i];
+        if (values != NULL && out_values != NULL)
+            out_values[new_idx] = values[group_start+i];
     }
 }

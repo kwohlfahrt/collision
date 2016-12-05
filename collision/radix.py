@@ -6,9 +6,9 @@ from .scan import PrefixScanProgram, PrefixScanner
 
 class RadixProgram(Program):
     src = Path(__file__).parent / "radix.cl"
-    kernel_args = {'block_sort': [None, None, None, None, None, None,
+    kernel_args = {'block_sort': [None, None, None, None, None, None, None, None, None,
                                   dtype('uint8'), dtype('uint8')],
-                   'scatter': [None, None, None, None, None, None,
+                   'scatter': [None, None, None, None, None, None, None, None,
                                dtype('uint8'), dtype('uint8')]}
 
     def __init__(self, ctx, value_dtype=dtype('uint32')):
@@ -114,7 +114,7 @@ class RadixSorter:
              in_values_buf=None, out_values_buf=None, wait_for=None):
         wait_for = wait_for or []
 
-        local_count = local_keys = cl.LocalMemory(
+        local_count = local_keys = local_values = cl.LocalMemory(
             self.group_size * 2 * self.program.value_dtype.itemsize
         )
         local_histogram = local_offset = cl.LocalMemory(
@@ -124,8 +124,8 @@ class RadixSorter:
         for radix_pass in range(self.num_passes):
             block_sort = self.program.kernels['block_sort'](
                 cq, (self.size // 2,), (self.group_size,),
-                keys_buf, self._histogram_buf,
-                local_keys, local_keys, local_histogram, local_count,
+                keys_buf, local_keys, local_keys, in_values_buf, local_values, local_values,
+                self._histogram_buf, local_histogram, local_count,
                 self.radix_bits, radix_pass, wait_for=wait_for
             )
             copy_histogram = cl.enqueue_copy(
@@ -135,7 +135,7 @@ class RadixSorter:
             calc_scan = self.scanner.prefix_sum(cq, self._offset_buf, [copy_histogram])
             calc_scatter = self.program.kernels['scatter'](
                 cq, (self.size // 2,), (self.group_size,),
-                keys_buf, out_keys_buf,
+                keys_buf, out_keys_buf, in_values_buf, out_values_buf,
                 self._offset_buf, local_offset, self._histogram_buf, local_histogram,
                 self.radix_bits, radix_pass, wait_for=[calc_scan]
             )

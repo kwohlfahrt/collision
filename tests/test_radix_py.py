@@ -109,13 +109,10 @@ def test_sorter_resized(cl_env, sort_program, scan_program, value_dtype, old_sha
     np.testing.assert_equal(out_map, np.sort(data))
 
 
-@pytest.mark.skip
-def test_arg_sorter(cl_env, sort_program, scan_program, value_dtype):
+@pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32)])
+def test_arg_sorter(cl_env, sort_program, scan_program, value_dtype, size, group_size):
     ctx, cq = cl_env
-    group_size = 32
-    ngroups = 10
-    size = group_size * ngroups * 50
-    sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
+    sorter = RadixSorter(ctx, size, group_size, value_dtype=value_dtype,
                          program=sort_program, scan_program=scan_program)
     keys = np.random.randint(500, size=size, dtype=value_dtype)
     keys_buf = cl.Buffer(
