@@ -17,6 +17,8 @@ def prefix_sum(x, axis=None):
     r[1:] = np.cumsum(x, axis)[:-1]
     return r
 
+sizes = [(1, 8), (3, 8), (4, 8), (8, 32), (16, 128)]
+
 @pytest.fixture(scope='module')
 def radix_kernels(cl_env, request, value_dtype):
     kernel_args = {'block_sort': [None, None, None, None, None, None,
@@ -43,7 +45,7 @@ def radix_key(values, radix_bits, radix_pass):
 
 
 # group_size must be power of 2 (for scan to work)
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (3, 8), (4, 8), (8, 32)])
+@pytest.mark.parametrize("ngroups,group_size", sizes)
 def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
@@ -78,27 +80,31 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
         order = np.argsort(radix_key(keys, radix_bits, radix_pass), kind='mergesort')
         grid = np.ogrid[tuple(slice(0, s) for s in keys.shape)]
 
-        expected = keys[grid[:-1] + [order]]
+        (histogram_map, _) = cl.enqueue_map_buffer(
+            cq, histogram_buf, cl.map_flags.READ, 0,
+            (histogram_len, ngroups), np.dtype('uint32'), wait_for=[e], is_blocking=True
+        )
+        i = 0
+        for group_keys, histogram in zip(keys, histogram_map.T):
+            group_keys = radix_key(group_keys, radix_bits, radix_pass).astype('uint16')
+            expected = np.bincount(group_keys, minlength=16)
+            try:
+                np.testing.assert_equal(histogram, expected)
+            except AssertionError:
+                print((radix_pass, i))
+                raise
+            i += 1
 
+        expected = keys[grid[:-1] + [order]]
         (keys_map, _) = cl.enqueue_map_buffer(
             cq, keys_buf, cl.map_flags.READ, 0,
             (ngroups, group_size * 2), keys.dtype, wait_for=[e], is_blocking=True
         )
         np.testing.assert_equal(keys_map, expected)
 
-        (histogram_map, _) = cl.enqueue_map_buffer(
-            cq, histogram_buf, cl.map_flags.READ, 0,
-            (histogram_len, ngroups), np.dtype('uint32'), wait_for=[e], is_blocking=True
-        )
-
-        for group_keys, histogram in zip(keys, histogram_map.T):
-            group_keys = radix_key(group_keys, radix_bits, radix_pass).astype('uint16')
-            expected = np.bincount(group_keys, minlength=16)
-            np.testing.assert_equal(histogram, expected)
-
 
 # group_size must be power of 2 (for scan to work)
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (3, 8), (4, 8), (8, 32)])
+@pytest.mark.parametrize("ngroups,group_size", sizes)
 def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
@@ -160,7 +166,7 @@ def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
         np.testing.assert_equal(keys_map, expected.reshape(ngroups, 2 * group_size))
 
 
-@pytest.mark.parametrize("ngroups,group_size", [(1, 8), (2, 8), (3, 8), (8, 32)])
+@pytest.mark.parametrize("ngroups,group_size", sizes)
 def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 

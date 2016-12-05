@@ -32,16 +32,15 @@ def radix_sort(cq, sorter, *args):
     cl.wait_for_events([sorter.sort(cq, *args)])
 
 
-@pytest.mark.skip
-@pytest.mark.parametrize("size,gen,ngroups,group_size,rounds", [
-    (307200, partial(np.random.randint, 0, 1000), 16, 128, 100),
-    (307200, partial(np.random.randint, 0, 307200), 16, 128, 100),
-    (307200, np.arange, 16, 128, 100),
+@pytest.mark.parametrize("size,gen,group_size,rounds", [
+    (307200, partial(np.random.randint, 0, 1000), 128, 100),
+    (307200, partial(np.random.randint, 0, 307200), 128, 100),
+    (307200, np.arange, 128, 100),
 ])
 def test_radix_sort(cl_env, radix_program, scan_program, value_dtype,
-                    size, gen, ngroups, group_size, rounds, benchmark):
+                    size, gen, group_size, rounds, benchmark):
     ctx, cq = cl_env
-    sorter = RadixSorter(ctx, size, ngroups, group_size, value_dtype=value_dtype,
+    sorter = RadixSorter(ctx, size, group_size, value_dtype=value_dtype,
                          program=radix_program, scan_program=scan_program)
 
     keys = gen(size, dtype=value_dtype)

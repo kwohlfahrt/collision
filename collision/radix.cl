@@ -19,7 +19,9 @@ unsigned int local_bin(const local unsigned DTYPE * const keys, local unsigned i
     up_sweep(count, size);
 
     unsigned int sum = count[size - 1];
-    count[size - 1] = 0;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (get_local_id(0) == 0)
+        count[size - 1] = 0;
 
     barrier(CLK_LOCAL_MEM_FENCE);
     down_sweep(count, size);
