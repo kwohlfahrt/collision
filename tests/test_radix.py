@@ -60,7 +60,7 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
 
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
-    count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    count = cl.LocalMemory(group_size * 2 * np.dtype('uint32').itemsize)
     local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
 
     for radix_pass in range(keys.dtype.itemsize * 8 // radix_bits):
@@ -190,7 +190,7 @@ def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
 
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
-    count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    count = cl.LocalMemory(group_size * 2 * np.dtype('uint32').itemsize)
     local_offset = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
     local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
 
@@ -265,7 +265,7 @@ def test_argsort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
 
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
     local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
-    count = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    count = cl.LocalMemory(group_size * 2 * np.dtype('uint32').itemsize)
     local_offset = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
     local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
 

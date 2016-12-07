@@ -114,8 +114,11 @@ class RadixSorter:
              in_values_buf=None, out_values_buf=None, wait_for=None):
         wait_for = wait_for or []
 
-        local_count = local_keys = local_values = cl.LocalMemory(
+        local_keys = local_values = cl.LocalMemory(
             self.group_size * 2 * self.program.value_dtype.itemsize
+        )
+        local_count = cl.LocalMemory(
+            self.group_size * 2 * self.histogram_dtype.itemsize
         )
         local_histogram = local_offset = cl.LocalMemory(
             2 ** self.radix_bits * self.histogram_dtype.itemsize
