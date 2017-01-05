@@ -32,13 +32,13 @@ def find_collisions(coords, radii):
     return set(zip(*reversed(np.nonzero(collisions))))
 
 
-@pytest.mark.skip
-@pytest.mark.parametrize("size,sorter_shape,expected", [
-    (24, (3,8), 24), (23, (3,8), 24), (25, (3,8), 48)
+@pytest.mark.parametrize("size,ngroups,group_size,expected", [
+    (48, 3, 8, 48), (47, 3, 8, 48), (49, 3, 8, 64),
 ])
-def test_padded_size(cl_env, collision_programs, coord_dtype, size, sorter_shape, expected):
+def test_padded_size(cl_env, collision_programs, coord_dtype,
+                     size, ngroups, group_size, expected):
     ctx, cq = cl_env
-    collider = Collider(ctx, size, sorter_shape, coord_dtype, *collision_programs)
+    collider = Collider(ctx, size, ngroups, group_size, coord_dtype, *collision_programs)
     assert collider.padded_size == expected
 
 
