@@ -81,12 +81,15 @@ class Collider:
             self.n_nodes * self.flag_dtype.itemsize
         )
 
-    def resize(self, size=None, sorter_shape=(None, None, None)):
+    def resize(self, size=None, ngroups=None, group_size=None, radix_bits=None):
         ctx = self.program.context
         old_padded_size = self.padded_size
         old_n_nodes = self.n_nodes
-        self.sorter.resize(self.pad_size(self.size, *sorter_shape[:2]), *sorter_shape)
-        self.reducer.resize(*sorter_shape[:2])
+
+        sorter_group_size = group_size if group_size is not None else self.sorter.group_size
+        self.sorter.resize(self.pad_size(self.size, sorter_group_size),
+                           group_size, radix_bits)
+        self.reducer.resize(ngroups, group_size)
         self.size = size
 
         if old_padded_size != self.padded_size:
