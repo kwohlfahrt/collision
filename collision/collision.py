@@ -37,16 +37,16 @@ class Collider:
     counter_dtype = dtype('uint32')
     id_dtype = dtype('uint32')
 
-    def __init__(self, ctx, size, sorter_shape, coord_dtype=dtype('float32'),
+    def __init__(self, ctx, size, ngroups, group_size, coord_dtype=dtype('float32'),
                  program=None, sorter_programs=(None, None), reducer_program=None):
         self.size = size
 
         # self.padded size not available before sorter creation
-        padded_size = self.pad_size(size, sorter_shape[0], sorter_shape[1])
-        self.sorter = RadixSorter(ctx, padded_size, *sorter_shape,
+        padded_size = self.pad_size(size, group_size)
+        self.sorter = RadixSorter(ctx, padded_size, group_size,
                                   program=sorter_programs[0],
                                   scan_program=sorter_programs[1])
-        self.reducer = Reducer(ctx, *sorter_shape, coord_dtype=coord_dtype,
+        self.reducer = Reducer(ctx, ngroups, group_size, coord_dtype=coord_dtype,
                                program=reducer_program)
         if program is None:
             program = CollisionProgram(ctx, coord_dtype)
@@ -81,12 +81,15 @@ class Collider:
             self.n_nodes * self.flag_dtype.itemsize
         )
 
-    def resize(self, size=None, sorter_shape=(None, None, None)):
+    def resize(self, size=None, ngroups=None, group_size=None, radix_bits=None):
         ctx = self.program.context
         old_padded_size = self.padded_size
         old_n_nodes = self.n_nodes
-        self.sorter.resize(self.pad_size(self.size, *sorter_shape[:2]), *sorter_shape)
-        self.reducer.resize(*sorter_shape[:2])
+
+        sorter_group_size = group_size if group_size is not None else self.sorter.group_size
+        self.sorter.resize(self.pad_size(self.size, sorter_group_size),
+                           group_size, radix_bits)
+        self.reducer.resize(ngroups, group_size)
         self.size = size
 
         if old_padded_size != self.padded_size:
@@ -117,16 +120,13 @@ class Collider:
     def n_nodes(self):
         return self.size * 2 - 1
 
-    def pad_size(self, size, ngroups, group_size):
-        if ngroups is None:
-            ngroups = self.sorter.ngroups
-        if group_size is None:
-            group_size = self.sorter.group_size
-        return roundUp(size, ngroups * group_size)
+    @staticmethod
+    def pad_size(size, group_size):
+        return roundUp(size, 2 * group_size)
 
     @property
     def padded_size(self):
-        return self.pad_size(self.size, self.sorter.ngroups, self.sorter.group_size)
+        return self.pad_size(self.size, self.sorter.group_size)
 
     def get_collisions(self, cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf,
                        n_collisions, wait_for=None):

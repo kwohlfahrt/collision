@@ -1,4 +1,5 @@
 // Philippe Helluy. A portable implementation of the radix sort algorithm in OpenCL. 2011
+#include "local_scan.cl"
 
 // Cannot pass same buffer to two pointers (at least on nVidia)
 kernel void local_scan(global unsigned int * const data,
@@ -13,15 +14,7 @@ kernel void local_scan(global unsigned int * const data,
     wait_group_events(1, &copy);
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // up-sweep
-    for (size_t i = group_size / 2, o = 1; i > 0; i /= 2, o *= 2) {
-        if (get_local_id(0) < i) {
-            size_t a = o * (2 * get_local_id(0) + 1) - 1;
-            size_t b = o * (2 * get_local_id(0) + 2) - 1;
-            local_data[b] += local_data[a];
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-    }
+    up_sweep(local_data, group_size);
 
     if (get_local_id(0) == 0) {
         if (block_sums != NULL)
@@ -30,18 +23,7 @@ kernel void local_scan(global unsigned int * const data,
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // down-sweep
-    for (size_t i = 1, o = group_size / 2; i < group_size; i *= 2, o /= 2) {
-        if (get_local_id(0) < i) {
-            size_t a = o * (2 * get_local_id(0) + 1) - 1;
-            size_t b = o * (2 * get_local_id(0) + 2) - 1;
-
-            unsigned int tmp = local_data[a];
-            local_data[a] = local_data[b];
-            local_data[b] += tmp;
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-    }
+    down_sweep(local_data, group_size);
 
     copy = async_work_group_copy(data + group_start, local_data, group_size, 0);
     wait_group_events(1, &copy);
