@@ -42,7 +42,6 @@ def test_padded_size(cl_env, collision_programs, coord_dtype,
     assert collider.padded_size == expected
 
 
-@pytest.mark.skip
 def test_collision(cl_env, coord_dtype, collision_programs):
     ctx, cq = cl_env
 
@@ -55,7 +54,7 @@ def test_collision(cl_env, coord_dtype, collision_programs):
     radii = np.ones(len(coords), dtype=coord_dtype)
     expected = {(0, 1), (4, 5)}
 
-    collider = Collider(ctx, len(coords), (3, 2), coord_dtype, *collision_programs)
+    collider = Collider(ctx, len(coords), 3, 8, coord_dtype, *collision_programs)
 
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
@@ -87,13 +86,12 @@ def test_collision(cl_env, coord_dtype, collision_programs):
     assert set(map(tuple, collisions_map)) == expected
 
 
-@pytest.mark.skip
-@pytest.mark.parametrize("size,sorter_shape", [(5,(5,1)), (20,(5,4)),
-                                               (100,(5,4)), (256,(4,32)),
-                                               (317, (4, 16)), (341, (4, 64))])
-def test_random_collision(cl_env, coord_dtype, collision_programs, size, sorter_shape):
+@pytest.mark.parametrize("size,ngroups,group_size", [
+    (120, 5, 8), (256, 4, 32), (317, 4, 16), (341, 4, 64)
+])
+def test_random_collision(cl_env, coord_dtype, collision_programs, size, ngroups, group_size):
     ctx, cq = cl_env
-    collider = Collider(ctx, size, sorter_shape, coord_dtype, *collision_programs)
+    collider = Collider(ctx, size, ngroups, group_size, coord_dtype, *collision_programs)
 
     np.random.seed(4)
     coords = np.random.random((size, 3)).astype(coord_dtype)

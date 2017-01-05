@@ -1,7 +1,7 @@
 from numpy import dtype, zeros
 from pathlib import Path
 import pyopencl as cl
-from .misc import Program, nextPowerOf2
+from .misc import Program, nextPowerOf2, roundUp
 from .scan import PrefixScanProgram, PrefixScanner
 
 class RadixProgram(Program):
@@ -108,7 +108,8 @@ class RadixSorter:
 
     @property
     def histogram_len(self):
-        return (2 ** self.radix_bits) * self.size // 2 // self.group_size
+        length = (2 ** self.radix_bits) * self.size // 2 // self.group_size
+        return roundUp(length, 2 * self.group_size) # Round up for scanner
 
     def sort(self, cq, keys_buf, out_keys_buf,
              in_values_buf=None, out_values_buf=None, wait_for=None):

@@ -58,7 +58,7 @@ def test_num_passes(cl_env, sort_program, scan_program, value_dtype,
     assert sorter.num_passes == expected
 
 
-@pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32)])
+@pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32), (32, 16)])
 def test_sorter(cl_env, sort_program, scan_program, value_dtype, size, group_size):
     ctx, cq = cl_env
     sorter = RadixSorter(ctx, size, group_size, value_dtype=value_dtype,
