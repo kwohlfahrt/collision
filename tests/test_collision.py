@@ -234,6 +234,42 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
     np.testing.assert_equal(bounds_map, expected)
 
 
+def test_codes(cl_env, kernels, coord_dtype):
+    ctx, cq = cl_env
+
+    coords = np.array([[ 0.0, 1.0, 3.0],
+                       [ 0.0, 1.0, 3.0],
+                       [ 4.0, 1.0, 8.0],
+                       [-4.0,-6.0, 3.0],
+                       [-5.0, 0.0,-1.0],
+                       [-5.0, 0.5,-0.5]], dtype=coord_dtype)
+    expected = np.array([862940378, 862940378, 1073741823,
+                         20332620, 302580864, 306295426], dtype='int32')
+
+    coords_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+    )
+    range_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
+    )
+    codes_buf = cl.Buffer(
+        ctx, cl.mem_flags.READ_WRITE, len(coords) * np.dtype('uint32').itemsize
+    )
+    calc_codes = kernels['calculateCodes'](
+        cq, (len(coords),), None,
+        codes_buf, coords_buf, range_buf,
+    )
+
+    (codes_map, _) = cl.enqueue_map_buffer(
+        cq, codes_buf, cl.map_flags.READ | cl.map_flags.WRITE,
+        0, (len(coords),), np.dtype('uint32'),
+        wait_for=[calc_codes], is_blocking=True
+    )
+    np.testing.assert_equal(codes_map, expected)
+    del codes_map
+
+
 def test_traverse(cl_env, kernels, coord_dtype):
     ctx, cq = cl_env
 

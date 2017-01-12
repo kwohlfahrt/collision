@@ -20,13 +20,13 @@ unsigned int expandBits(unsigned int v) {
 }
 
 unsigned int morton(VTYPE pos, const VTYPE min, const VTYPE max) {
-    VTYPE norm_pos = (pos - min) / (max - min);
-    DTYPE scale = (1 << (sizeof(unsigned int) * 8 / 3)) - 1;
-    VTYPE pos_scaled = clamp(pos * scale, 0.0f, scale);
+    const DTYPE scale = (1 << (sizeof(unsigned int) * 8 / 3)) - 1;
+    pos = (pos - min) / (max - min);
+    pos = clamp(pos * scale, 0.0f, scale);
 
-    unsigned int xx = expandBits((unsigned int) pos_scaled.x);
-    unsigned int yy = expandBits((unsigned int) pos_scaled.y);
-    unsigned int zz = expandBits((unsigned int) pos_scaled.z);
+    unsigned int xx = expandBits((unsigned int) pos.x);
+    unsigned int yy = expandBits((unsigned int) pos.y);
+    unsigned int zz = expandBits((unsigned int) pos.z);
     return (xx << 2) + (yy << 1) + zz;
 }
 
