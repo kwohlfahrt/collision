@@ -1,4 +1,6 @@
 __pycache__
 build
+dist
 .cache
 .benchmarks
+*.egg-info
