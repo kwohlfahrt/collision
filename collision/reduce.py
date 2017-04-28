@@ -60,7 +60,7 @@ class Reducer:
         e = self.program.kernels['bounds1'](
             cq, (self.ngroups,), (self.group_size,),
             values_buf, size, self._group_buf,
-            cl.LocalMemory(2 * 3 * self.group_size * self.program.coord_dtype.itemsize),
+            cl.LocalMemory(2 * 4 * self.group_size * self.program.coord_dtype.itemsize),
             g_times_l=True, wait_for=wait_for
         )
 
