@@ -74,7 +74,7 @@ class Collider:
         # Dual-use: storing per-node and scene bounds
         self._bounds_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-            self.n_nodes * 2 * 3 * self.program.coord_dtype.itemsize
+            self.n_nodes * 2 * 4 * self.program.coord_dtype.itemsize
         )
         self._flags_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,

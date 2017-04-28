@@ -199,7 +199,7 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=nodes
     )
     bounds_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_WRITE, len(nodes) * 3 * 2 * coords.dtype.itemsize
+        ctx, cl.mem_flags.READ_WRITE, len(nodes) * 4 * 2 * coords.dtype.itemsize
     )
     flags_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, len(nodes) * np.dtype('uint32').itemsize
@@ -220,7 +220,7 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
     )
     (bounds_map, _) = cl.enqueue_map_buffer(
         cq, bounds_buf, cl.map_flags.READ,
-        0, (len(nodes), 2, 3), coord_dtype,
+        0, (len(nodes), 2, 4), coord_dtype,
         wait_for=[calc_bounds], is_blocking=True
     )
 
@@ -231,7 +231,7 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
                          [[-1.0, 0.0, 2.0], [ 1.0, 2.0, 4.0]],
                          [[ 3.0, 0.0, 7.0], [ 5.0, 2.0, 9.0]],
                          [[-6.0,-1.0,-2.0], [-4.0, 1.0, 0.0]]], dtype=coord_dtype)
-    np.testing.assert_equal(bounds_map, expected)
+    np.testing.assert_equal(bounds_map[:, :, :3], expected)
 
 
 def test_codes(cl_env, kernels, coord_dtype):
@@ -299,7 +299,7 @@ def test_traverse(cl_env, kernels, coord_dtype):
         ctx, cl.mem_flags.READ_WRITE, n_nodes * Node.itemsize
     )
     bounds_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_WRITE, n_nodes * 3 * 2 * coords.dtype.itemsize
+        ctx, cl.mem_flags.READ_WRITE, n_nodes * 4 * 2 * coords.dtype.itemsize
     )
     flags_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, n_nodes * np.dtype('uint32').itemsize

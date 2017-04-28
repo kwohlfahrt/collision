@@ -116,9 +116,9 @@ kernel void generateBVH(const global unsigned int * const codes,
 }
 
 struct Bound {
-    DTYPE min[3];
-    DTYPE max[3];
-} __attribute__((packed));
+    VTYPE min;
+    VTYPE max;
+};
 
 kernel void leafBounds(global struct Bound * const bounds,
                        const global DTYPE * const coords,
@@ -129,8 +129,8 @@ kernel void leafBounds(global struct Bound * const bounds,
     size_t node_idx = leaf_start + get_global_id(0);
     const unsigned int coords_idx = nodes[node_idx].leaf.id;
     VTYPE coord = vload3(coords_idx, coords);
-    vstore3(coord - radii[coords_idx], 0, bounds[node_idx].min);
-    vstore3(coord + radii[coords_idx], 0, bounds[node_idx].max);
+    bounds[node_idx].min = coord - radii[coords_idx];
+    bounds[node_idx].max = coord + radii[coords_idx];
 }
 
 kernel void internalBounds(global struct Bound * const bounds,
@@ -147,17 +147,13 @@ kernel void internalBounds(global struct Bound * const bounds,
             break;
         mem_fence(CLK_GLOBAL_MEM_FENCE);
         const global unsigned int * child_idxs = nodes[node_idx].internal.children;
-        vstore3(min(vload3(0, bounds[child_idxs[0]].min),
-                    vload3(0, bounds[child_idxs[1]].min)),
-                0, bounds[node_idx].min);
-        vstore3(max(vload3(0, bounds[child_idxs[0]].max),
-                    vload3(0, bounds[child_idxs[1]].max)),
-                0, bounds[node_idx].max);
+        bounds[node_idx].min = min(bounds[child_idxs[0]].min, bounds[child_idxs[1]].min);
+        bounds[node_idx].max = max(bounds[child_idxs[0]].max, bounds[child_idxs[1]].max);
     } while (node_idx != 0);
 }
 
 bool checkOverlap(const struct Bound a, const struct Bound b) {
-    return all(vload3(0, a.max) > vload3(0, b.min) & vload3(0, a.min) < vload3(0, b.max));
+    return all(a.max > b.min & a.min < b.max);
 }
 
 bool isLeaf(const unsigned int idx, const unsigned int n) {
