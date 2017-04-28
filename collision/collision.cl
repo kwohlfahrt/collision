@@ -126,20 +126,17 @@ kernel void leafBounds(global struct Bound * const bounds,
                        const global struct Node * const nodes) {
     const unsigned int n = get_global_size(0);
     const size_t leaf_start = n - 1;
-    const size_t D = 3;
     size_t node_idx = leaf_start + get_global_id(0);
     const unsigned int coords_idx = nodes[node_idx].leaf.id;
-    for (size_t d = 0; d < D; d++) {
-        bounds[node_idx].min[d] = coords[coords_idx*D+d] - radii[coords_idx];
-        bounds[node_idx].max[d] = coords[coords_idx*D+d] + radii[coords_idx];
-    }
+    VTYPE coord = vload3(coords_idx, coords);
+    vstore3(coord - radii[coords_idx], 0, bounds[node_idx].min);
+    vstore3(coord + radii[coords_idx], 0, bounds[node_idx].max);
 }
 
 kernel void internalBounds(global struct Bound * const bounds,
                            global unsigned int * const flags,
                            const global struct Node * const nodes) {
     const unsigned int n = get_global_size(0);
-    const size_t D = 3;
     const size_t leaf_start = n - 1;
     size_t node_idx = leaf_start + get_global_id(0);
 
@@ -150,21 +147,17 @@ kernel void internalBounds(global struct Bound * const bounds,
             break;
         mem_fence(CLK_GLOBAL_MEM_FENCE);
         const global unsigned int * child_idxs = nodes[node_idx].internal.children;
-        for (size_t d = 0; d < D; d++) {
-            bounds[node_idx].min[d] = min(bounds[child_idxs[0]].min[d],
-                                          bounds[child_idxs[1]].min[d]);
-            bounds[node_idx].max[d] = max(bounds[child_idxs[0]].max[d],
-                                          bounds[child_idxs[1]].max[d]);
-        }
+        vstore3(min(vload3(0, bounds[child_idxs[0]].min),
+                    vload3(0, bounds[child_idxs[1]].min)),
+                0, bounds[node_idx].min);
+        vstore3(max(vload3(0, bounds[child_idxs[0]].max),
+                    vload3(0, bounds[child_idxs[1]].max)),
+                0, bounds[node_idx].max);
     } while (node_idx != 0);
 }
 
 bool checkOverlap(const struct Bound a, const struct Bound b) {
-    const size_t D = 3;
-    bool collision = 1;
-    for (size_t d = 0; d < D; d++)
-        collision &= a.max[d] > b.min[d] && a.min[d] < b.max[d];
-    return collision;
+    return all(vload3(0, a.max) > vload3(0, b.min) & vload3(0, a.min) < vload3(0, b.max));
 }
 
 bool isLeaf(const unsigned int idx, const unsigned int n) {
