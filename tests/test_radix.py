@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 from itertools import product as cartesian
 from .common import cl_env
-from .test_scan import scan_kernels
 
 np.random.seed(4)
 

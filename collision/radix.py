@@ -1,4 +1,4 @@
-from numpy import dtype, zeros
+from numpy import dtype
 from pathlib import Path
 import pyopencl as cl
 from .misc import Program, nextPowerOf2, roundUp
