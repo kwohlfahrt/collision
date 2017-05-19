@@ -7,14 +7,16 @@ from ..common import cl_env
 from .test_scan import scan_program
 
 def pytest_generate_tests(metafunc):
+    if 'key_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("key_dtype", ['uint32', 'uint64'], scope='module')
     if 'value_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
+        metafunc.parametrize("value_dtype", ['uint32', 'float64'], scope='module')
 
 
 @pytest.fixture(scope='module')
-def radix_program(cl_env, value_dtype):
+def radix_program(cl_env, key_dtype, value_dtype):
     ctx, cq = cl_env
-    return RadixProgram(ctx, value_dtype)
+    return RadixProgram(ctx, key_dtype, value_dtype)
 
 
 def radix_sort_setup(cq, bufs, values):
@@ -37,19 +39,21 @@ def radix_sort(cq, sorter, *args):
     (307200, partial(np.random.randint, 0, 307200), 128, 100),
     (307200, np.arange, 128, 100),
 ])
-def test_radix_sort(cl_env, radix_program, scan_program, value_dtype,
+def test_radix_sort(cl_env, radix_program, scan_program, key_dtype, value_dtype,
                     size, gen, group_size, rounds, benchmark):
     ctx, cq = cl_env
-    sorter = RadixSorter(ctx, size, group_size, value_dtype=value_dtype,
-                         program=radix_program, scan_program=scan_program)
+    sorter = RadixSorter(
+        ctx, size, group_size, key_dtype=key_dtype, value_dtype=value_dtype,
+        program=radix_program, scan_program=scan_program
+    )
 
-    keys = gen(size, dtype=value_dtype)
+    keys = gen(size, dtype=key_dtype)
     expected = np.sort(keys)
 
     keys_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY, keys.nbytes)
     out_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
 
-    if value_dtype == np.dtype('uint64'):
+    if key_dtype == np.dtype('uint64'):
         rounds //= 2
     benchmark.pedantic(radix_sort, (cq, sorter, keys_buf, out_buf),
                        setup=partial(radix_sort_setup, cq, [keys_buf], [keys]),
@@ -68,13 +72,15 @@ def test_radix_sort(cl_env, radix_program, scan_program, value_dtype,
     (307200, partial(np.random.randint, 0, 307200), 128, 100),
     (307200, np.arange, 128, 100),
 ])
-def test_sort_values(cl_env, radix_program, scan_program, value_dtype,
+def test_sort_values(cl_env, radix_program, scan_program, key_dtype, value_dtype,
                      size, gen, group_size, rounds, benchmark):
     ctx, cq = cl_env
-    sorter = RadixSorter(ctx, size, group_size, value_dtype=value_dtype,
-                         program=radix_program, scan_program=scan_program)
+    sorter = RadixSorter(
+        ctx, size, group_size, key_dtype=key_dtype, value_dtype=value_dtype,
+        program=radix_program, scan_program=scan_program
+    )
 
-    keys = gen(size, dtype=value_dtype)
+    keys = gen(size, dtype=key_dtype)
     values = np.arange(size, dtype=value_dtype)
     expected_keys = np.sort(keys)
     expected_values = values[np.argsort(keys, kind='mergesort')]
@@ -89,7 +95,7 @@ def test_sort_values(cl_env, radix_program, scan_program, value_dtype,
     )
     out_values_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, values.nbytes)
 
-    if value_dtype == np.dtype('uint64'):
+    if key_dtype == np.dtype('uint64'):
         rounds //= 2
     benchmark.pedantic(radix_sort, (cq, sorter, keys_buf, out_keys_buf, values_buf, out_values_buf),
                        setup=partial(radix_sort_setup, cq, [keys_buf, values_buf], [keys, values]),

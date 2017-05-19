@@ -1,4 +1,5 @@
 import pyopencl as cl
+from numpy import dtype
 
 class Program:
     def __init__(self, ctx, options=None):
@@ -21,3 +22,18 @@ def roundUp(x, base=1):
 
 def nextPowerOf2(x):
     return 2 ** (x - 1).bit_length()
+
+np_integer_dtypes = list(map('int{}'.format, [8, 16, 32, 64]))
+np_unsigned_dtypes = list(map('u{}'.format, np_integer_dtypes))
+np_float_dtypes = list(map('float{}'.format, [16, 32, 64]))
+np_dtypes = np_integer_dtypes + np_unsigned_dtypes + np_float_dtypes
+
+c_integer_dtypes = ['char', 'short', 'int', 'long']
+c_unsigned_dtypes = list(map('unsigned {}'.format, c_integer_dtypes))
+c_float_dtypes = ['half', 'float', 'double']
+c_dtypes = c_integer_dtypes + c_unsigned_dtypes + c_float_dtypes
+
+np_c_dtypes = dict(zip(map(dtype, np_dtypes), c_dtypes))
+
+def dtype_decl(dt):
+    return np_c_dtypes[dt]

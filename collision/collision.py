@@ -43,9 +43,11 @@ class Collider:
 
         # self.padded size not available before sorter creation
         padded_size = self.pad_size(size, group_size)
-        self.sorter = RadixSorter(ctx, padded_size, group_size,
-                                  program=sorter_programs[0],
-                                  scan_program=sorter_programs[1])
+        self.sorter = RadixSorter(
+            ctx, padded_size, group_size,
+            key_dtype=self.code_dtype, value_dtype=self.id_dtype,
+            program=sorter_programs[0], scan_program=sorter_programs[1]
+        )
         self.reducer = Reducer(ctx, ngroups, group_size, coord_dtype=coord_dtype,
                                program=reducer_program)
         if program is None:

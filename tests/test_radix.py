@@ -4,12 +4,19 @@ from pathlib import Path
 import pytest
 from itertools import product as cartesian
 from .common import cl_env
+from collision.misc import dtype_decl
 
 np.random.seed(4)
 
 def pytest_generate_tests(metafunc):
+    if 'key_dtype' in metafunc.fixturenames:
+        metafunc.parametrize(
+            "key_dtype", map(np.dtype, ['uint32', 'uint64']), scope='module'
+        )
     if 'value_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
+        metafunc.parametrize(
+            "value_dtype", map(np.dtype, ['uint32', 'float64']), scope='module'
+        )
 
 def prefix_sum(x, axis=None):
     r = np.zeros_like(x)
@@ -19,7 +26,7 @@ def prefix_sum(x, axis=None):
 sizes = [(1, 8), (3, 8), (4, 8), (8, 32), (16, 128)]
 
 @pytest.fixture(scope='module')
-def radix_kernels(cl_env, request, value_dtype):
+def radix_kernels(cl_env, request, value_dtype, key_dtype):
     kernel_args = {'block_sort': [None, None, None, None, None, None, None, None, None,
                                   np.dtype('uint8'), np.dtype('uint8')],
                    'scatter': [None, None, None, None, None, None, None, None,
@@ -28,7 +35,8 @@ def radix_kernels(cl_env, request, value_dtype):
     ctx, cq = cl_env
 
     src = Path(__file__).parent / ".." / "collision" / "radix.cl"
-    buildopts = ["-D DTYPE={}".format(c_dtypes[value_dtype]),
+    buildopts = ["-D KEY_TYPE='{}'".format(dtype_decl(key_dtype)),
+                 "-D VALUE_TYPE='{}'".format(dtype_decl(value_dtype)),
                  "-I {}".format(src.parent)]
 
     with src.open("r") as f:
@@ -45,13 +53,13 @@ def radix_key(values, radix_bits, radix_pass):
 
 # group_size must be power of 2 (for scan to work)
 @pytest.mark.parametrize("ngroups,group_size", sizes)
-def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_size):
+def test_block_sort_random(cl_env, radix_kernels, key_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
     radix_bits = 4
     histogram_len = 2 ** radix_bits
 
-    keys = np.random.randint(0, 64, size=(ngroups, group_size * 2), dtype=value_dtype)
+    keys = np.random.randint(0, 64, size=(ngroups, group_size * 2), dtype=key_dtype)
 
     keys_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE, keys.nbytes)
     histogram_buf = cl.Buffer(ctx, cl.mem_flags.READ_WRITE,
@@ -106,12 +114,12 @@ def test_block_sort_random(cl_env, radix_kernels, value_dtype, ngroups, group_si
 
 # group_size must be power of 2 (for scan to work)
 @pytest.mark.parametrize("ngroups,group_size", sizes)
-def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
+def test_scatter(cl_env, radix_kernels, key_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
     radix_bits = 4
     histogram_len = 2 ** radix_bits
-    keys = np.random.randint(0, 64, size=(ngroups, group_size * 2), dtype=value_dtype)
+    keys = np.random.randint(0, 64, size=(ngroups, group_size * 2), dtype=key_dtype)
     keys_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY, keys.nbytes)
     out_keys_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
     histogram_buf = cl.Buffer(
@@ -169,13 +177,13 @@ def test_scatter(cl_env, radix_kernels, value_dtype, ngroups, group_size):
 
 
 @pytest.mark.parametrize("ngroups,group_size", sizes)
-def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
+def test_sort(cl_env, radix_kernels, key_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
     radix_bits = 4
     histogram_len = 2 ** radix_bits
 
-    keys = np.random.randint(0, 64, size=ngroups * group_size * 2, dtype=value_dtype)
+    keys = np.random.randint(0, 64, size=ngroups * group_size * 2, dtype=key_dtype)
     sort_keys = keys
 
     keys_buf = cl.Buffer(
@@ -240,14 +248,16 @@ def test_sort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
 
 
 @pytest.mark.parametrize("ngroups,group_size", sizes)
-def test_argsort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
+def test_argsort(cl_env, radix_kernels, key_dtype, value_dtype, ngroups, group_size):
     ctx, cq = cl_env
 
     radix_bits = 4
     histogram_len = 2 ** radix_bits
 
-    sort_keys = keys = np.random.randint(0, 64, size=ngroups * group_size * 2, dtype=value_dtype)
-    sort_values = values = np.random.randint(0, 256, size=ngroups * group_size * 2, dtype=value_dtype)
+    sort_keys = keys = np.random.randint(0, 64, size=ngroups * group_size * 2, dtype=key_dtype)
+    sort_values = values = np.random.uniform(
+        -1000, 1000, size=ngroups * group_size * 2
+    ).astype(value_dtype)
 
     keys_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
@@ -263,7 +273,7 @@ def test_argsort(cl_env, radix_kernels, value_dtype, ngroups, group_size):
                            ngroups * histogram_len * np.dtype('uint32').itemsize)
 
     local_keys = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
-    local_values = cl.LocalMemory(group_size * 2 * keys.dtype.itemsize)
+    local_values = cl.LocalMemory(group_size * 2 * values.dtype.itemsize)
     count = cl.LocalMemory(group_size * 2 * np.dtype('uint32').itemsize)
     local_offset = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)
     local_histogram = cl.LocalMemory(histogram_len * np.dtype('uint32').itemsize)

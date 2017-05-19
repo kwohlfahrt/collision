@@ -1,8 +1,10 @@
 from numpy import dtype
 from pathlib import Path
 import pyopencl as cl
-from .misc import Program, nextPowerOf2, roundUp
+from .misc import Program, nextPowerOf2, roundUp, np_unsigned_dtypes, dtype_decl
 from .scan import PrefixScanProgram, PrefixScanner
+
+np_unsigned_dtypes = set(map(dtype, np_unsigned_dtypes))
 
 class RadixProgram(Program):
     src = Path(__file__).parent / "radix.cl"
@@ -11,34 +13,35 @@ class RadixProgram(Program):
                    'scatter': [None, None, None, None, None, None, None, None,
                                dtype('uint8'), dtype('uint8')]}
 
-    def __init__(self, ctx, value_dtype=dtype('uint32')):
-        value_dtype = dtype(value_dtype)
-        if value_dtype == dtype('uint32'):
-            def_dtype = "int"
-        elif value_dtype == dtype('uint64'):
-            def_dtype = "long"
-        else:
-            raise ValueError("Invalid dtype: {}".format(value_dtype))
-        self.value_dtype = value_dtype
+    def __init__(self, ctx, key_dtype=dtype('uint32'), value_dtype=dtype('uint32')):
+        self.key_dtype = dtype(key_dtype)
+        self.value_dtype = dtype(value_dtype)
+        if self.key_dtype not in np_unsigned_dtypes:
+            raise ValueError("Invalid key dtype: {}".format(self.key_dtype))
 
-        super().__init__(ctx, ["-D DTYPE={}".format(def_dtype)])
+        super().__init__(ctx, [
+            "-D KEY_TYPE='{}'".format(dtype_decl(self.key_dtype)),
+            "-D VALUE_TYPE='{}'".format(dtype_decl(self.value_dtype))
+        ])
 
 class RadixSorter:
     histogram_dtype = dtype('uint32')
 
     def __init__(self, ctx, size, group_size, radix_bits=4,
-                 value_dtype=dtype('uint32'), program=None, scan_program=None):
-        value_dtype = dtype(value_dtype)
-        self.check_size(size, group_size, radix_bits, value_dtype)
+                 key_dtype=dtype('uint32'), value_dtype=dtype('uint32'),
+                 program=None, scan_program=None):
+        self.check_size(size, group_size, radix_bits, key_dtype)
         self.size = size
         self.group_size = group_size
         self.radix_bits = radix_bits
 
         if program is None:
-            program = RadixProgram(ctx, value_dtype)
+            program = RadixProgram(ctx, key_dtype, value_dtype)
         else:
             if program.context != ctx:
                 raise ValueError("Sorter and program contexts must match")
+            if program.key_dtype != key_dtype:
+                raise ValueError("Sorter and program key dtypes must match")
             if program.value_dtype != value_dtype:
                 raise ValueError("Sorter and program value dtypes must match")
         self.program = program
@@ -56,15 +59,16 @@ class RadixSorter:
         )
 
     @staticmethod
-    def check_size(size, group_size, radix_bits, value_dtype):
+    def check_size(size, group_size, radix_bits, key_dtype):
+        key_dtype = dtype(key_dtype)
         if group_size != nextPowerOf2(group_size):
             raise ValueError("Group size ({}) must be a power of two".format(group_size))
         if (size % (group_size * 2)):
             raise ValueError("Size ({}) must be multiple of 2 * group_size ({})"
                              .format(size, group_size))
-        if (value_dtype.itemsize * 8) % radix_bits:
+        if (key_dtype.itemsize * 8) % radix_bits:
             raise ValueError("Radix bits ({}) must evenly divide item-size ({})"
-                             .format(radix_bits, value_dtype.itemsize * 8))
+                             .format(radix_bits, key_dtype.itemsize * 8))
         if (2 ** radix_bits) > group_size * 2:
             raise ValueError("2 ^ radix_bits ({}) must be less than 2 * group_size ({})"
                              .format(radix_bits, group_size))
@@ -80,7 +84,7 @@ class RadixSorter:
         old_histogram_len = self.histogram_len
         old_params = (self.size, self.group_size, self.radix_bits)
 
-        self.check_size(size, group_size, radix_bits, self.program.value_dtype)
+        self.check_size(size, group_size, radix_bits, self.program.key_dtype)
 
         self.size = size
         self.group_size = group_size
@@ -104,7 +108,7 @@ class RadixSorter:
 
     @property
     def num_passes(self):
-        return (self.program.value_dtype.itemsize * 8) // self.radix_bits
+        return (self.program.key_dtype.itemsize * 8) // self.radix_bits
 
     @property
     def histogram_len(self):
@@ -115,7 +119,10 @@ class RadixSorter:
              in_values_buf=None, out_values_buf=None, wait_for=None):
         wait_for = wait_for or []
 
-        local_keys = local_values = cl.LocalMemory(
+        local_keys = cl.LocalMemory(
+            self.group_size * 2 * self.program.key_dtype.itemsize
+        )
+        local_values = cl.LocalMemory(
             self.group_size * 2 * self.program.value_dtype.itemsize
         )
         local_count = cl.LocalMemory(
@@ -145,7 +152,7 @@ class RadixSorter:
             )
             fill_keys = cl.enqueue_copy(
                 cq, keys_buf, out_keys_buf, wait_for=[calc_scatter],
-                byte_count=self.size * self.program.value_dtype.itemsize,
+                byte_count=self.size * self.program.key_dtype.itemsize,
             )
             wait_for = [fill_keys]
             if in_values_buf is not None and out_values_buf is not None:
