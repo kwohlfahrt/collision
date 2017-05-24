@@ -19,8 +19,8 @@ class OffsetProgram(Program):
             raise ValueError("Invalid offset dtype: {}".format(self.offset_dtype))
 
         super().__init__(ctx, [
-            "-D VALUE_TYPE='{}'".format(dtype_decl(self.value_dtype)),
-            "-D OFFSET_TYPE='{}'".format(dtype_decl(self.offset_dtype)),
+            "-DVALUE_TYPE='{}'".format(dtype_decl(self.value_dtype)),
+            "-DOFFSET_TYPE='{}'".format(dtype_decl(self.offset_dtype)),
         ])
 
 class OffsetFinder:

@@ -18,7 +18,7 @@ class ReductionProgram(Program):
             raise ValueError("Invalid dtype: {}".format(coord_dtype))
         self.coord_dtype = coord_dtype
 
-        super().__init__(ctx, ["-D DTYPE={}".format(def_dtype)])
+        super().__init__(ctx, ["-DDTYPE={}".format(def_dtype)])
 
 class Reducer:
     def __init__(self, ctx, ngroups, group_size, coord_dtype=dtype('float32'), program=None):

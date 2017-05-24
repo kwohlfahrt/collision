@@ -20,8 +20,8 @@ class RadixProgram(Program):
             raise ValueError("Invalid key dtype: {}".format(self.key_dtype))
 
         super().__init__(ctx, [
-            "-D KEY_TYPE='{}'".format(dtype_decl(self.key_dtype)),
-            "-D VALUE_TYPE='{}'".format(dtype_decl(self.value_dtype))
+            "-DKEY_TYPE='{}'".format(dtype_decl(self.key_dtype)),
+            "-DVALUE_TYPE='{}'".format(dtype_decl(self.value_dtype))
         ])
 
 class RadixSorter:

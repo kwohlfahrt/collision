@@ -41,8 +41,8 @@ def radix_kernels(cl_env, request, value_dtype, key_dtype):
     ctx, cq = cl_env
 
     src = Path(__file__).parent / ".." / "collision" / "radix.cl"
-    buildopts = ["-D KEY_TYPE='{}'".format(dtype_decl(key_dtype)),
-                 "-D VALUE_TYPE='{}'".format(dtype_decl(value_dtype)),
+    buildopts = ["-DKEY_TYPE='{}'".format(dtype_decl(key_dtype)),
+                 "-DVALUE_TYPE='{}'".format(dtype_decl(value_dtype)),
                  "-I {}".format(src.parent)]
 
     with src.open("r") as f:

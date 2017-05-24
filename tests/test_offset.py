@@ -18,8 +18,8 @@ def offset_kernels(cl_env, offset_dtype, value_dtype):
     ctx, cq = cl_env
 
     src = Path(__file__).parent / ".." / "collision" / "offset.cl"
-    buildopts = ["-D OFFSET_TYPE='{}'".format(dtype_decl(offset_dtype)),
-                 "-D VALUE_TYPE='{}'".format(dtype_decl(value_dtype)),
+    buildopts = ["-DOFFSET_TYPE='{}'".format(dtype_decl(offset_dtype)),
+                 "-DVALUE_TYPE='{}'".format(dtype_decl(value_dtype)),
                  "-I {}".format(src.parent)]
 
     with src.open("r") as f:

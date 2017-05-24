@@ -34,7 +34,7 @@ def pytest_generate_tests(metafunc):
 def kernels(cl_env, coord_dtype):
     ctx, cq = cl_env
 
-    buildopts = ["-D DTYPE={}".format(dtype_decl(coord_dtype))]
+    buildopts = ["-DDTYPE={}".format(dtype_decl(coord_dtype))]
 
     src = Path(__file__).parent / ".." / "collision"/ "collision.cl"
     with src.open("r") as f:
