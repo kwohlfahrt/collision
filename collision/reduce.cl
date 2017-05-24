@@ -7,7 +7,8 @@ kernel void bounds1(const global DTYPE * const coords,
                     const unsigned long n,
                     global DTYPE * const group_bounds,
                     local VTYPE * const scratch) {
-    VTYPE accumulator[2] = {{INFINITY, INFINITY, INFINITY}, {0, 0, 0}};
+    VTYPE accumulator[2] = {{INFINITY, INFINITY, INFINITY},
+                            {-INFINITY, -INFINITY, -INFINITY}};
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
         VTYPE coord = vload3(i, coords);
         accumulator[0] = min(accumulator[0], coord);
