@@ -47,8 +47,8 @@ def test_offset_missing(cl_env, offset_dtype, value_dtype, offset_program):
     ctx, cq = cl_env
     finder = OffsetFinder(ctx, value_dtype, offset_dtype, offset_program)
 
-    values = np.array([0, 0, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3], dtype=value_dtype)
-    expected = np.array([0, 2, 7, 7, 13, 13, 13], dtype=offset_dtype)
+    values = np.array([1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3], dtype=value_dtype)
+    expected = np.array([0, 0, 7, 7, 13, 13, 13], dtype=offset_dtype)
     values_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.HOST_NO_ACCESS |
                            cl.mem_flags.COPY_HOST_PTR, hostbuf=values)
     offset_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY | cl.mem_flags.HOST_READ_ONLY,

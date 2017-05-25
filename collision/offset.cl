@@ -7,6 +7,6 @@ kernel void find_offsets(global const VALUE_TYPE * const values,
     for (VALUE_TYPE i = a+1; i <= b; i++)
         offsets[i] = get_global_id(0) + 1;
 
-    if (get_global_id(0) == 0)
-        offsets[0] = 0;
+    if (get_global_id(0) <= values[0])
+        offsets[get_global_id(0)] = 0;
 }
