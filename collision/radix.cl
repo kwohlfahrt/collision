@@ -1,5 +1,3 @@
-// Philippe Helluy. A portable implementation of the radix sort algorithm in OpenCL. 2011
-
 #include "local_scan.cl"
 
 KEY_TYPE radix_key(KEY_TYPE key, unsigned char radix_bits, unsigned char pass) {
