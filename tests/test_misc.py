@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 from collision.misc import *
 
 @pytest.mark.parametrize("x,base,expected", [
@@ -14,3 +15,13 @@ def test_roundUp(x, base, expected):
 ])
 def test_nextPowerOf2(x, expected):
     assert nextPowerOf2(x) == expected
+
+
+def test_np_dtype():
+    assert dtype_decl(np.dtype('uint32')) == 'uint'
+    assert dtype_decl(np.dtype('float16')) == 'half'
+    assert dtype_decl(np.dtype(('float16', 4))) == 'half4'
+    with pytest.raises(ValueError):
+        dtype_decl(np.dtype(('float16', 5)))
+    with pytest.raises(ValueError):
+        dtype_decl(np.dtype(('float16', (4, 4))))

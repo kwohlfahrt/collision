@@ -11,7 +11,10 @@ def pytest_generate_tests(metafunc):
     if 'key_dtype' in metafunc.fixturenames:
         metafunc.parametrize("key_dtype", ['uint32', 'uint64'], scope='module')
     if 'value_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("value_dtype", ['uint32', 'float64'], scope='module')
+        metafunc.parametrize(
+            "value_dtype", map(np.dtype, ['uint32', 'float64', ('float64', 4)]),
+            scope='module'
+        )
 
 
 @pytest.fixture(scope='module')
@@ -137,7 +140,8 @@ def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=keys
     )
 
-    values = np.random.uniform(-1000, 1000, size=size).astype(dtype=value_dtype)
+    values = np.random.uniform(-1000, 1000, size=(size,) + value_dtype.shape)
+    values = values.astype(dtype=value_dtype.base)
     values_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
     )

@@ -29,11 +29,21 @@ np_float_dtypes = list(map('float{}'.format, [16, 32, 64]))
 np_dtypes = np_integer_dtypes + np_unsigned_dtypes + np_float_dtypes
 
 c_integer_dtypes = ['char', 'short', 'int', 'long']
-c_unsigned_dtypes = list(map('unsigned {}'.format, c_integer_dtypes))
+c_unsigned_dtypes = list(map('u{}'.format, c_integer_dtypes))
 c_float_dtypes = ['half', 'float', 'double']
 c_dtypes = c_integer_dtypes + c_unsigned_dtypes + c_float_dtypes
+
+cl_vector_sizes = {2 ** (n + 1) for n in range(4)}
 
 np_c_dtypes = dict(zip(map(dtype, np_dtypes), c_dtypes))
 
 def dtype_decl(dt):
-    return np_c_dtypes[dt]
+    if not dt.shape:
+        return np_c_dtypes[dt]
+    try:
+        n, = dt.shape
+    except TypeError:
+        raise ValueError("Too many vector dimensions: {}".format(dt.shape))
+    if n not in cl_vector_sizes:
+        raise ValueError("Invalid vector size: {}".format(n))
+    return "{}{}".format(np_c_dtypes[dt.base], n)
