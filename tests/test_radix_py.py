@@ -1,6 +1,7 @@
 import numpy as np
 import pyopencl as cl
 import pytest
+from inspect import signature
 from collision.radix import *
 from .common import cl_env
 from .test_scan_py import scan_program
@@ -8,49 +9,56 @@ from .test_scan_py import scan_program
 np.random.seed(4)
 
 def pytest_generate_tests(metafunc):
-    if 'key_dtype' in metafunc.fixturenames:
+    params = signature(metafunc.function).parameters
+    if 'key_dtype' in params:
         metafunc.parametrize("key_dtype", ['uint32', 'uint64'], scope='module')
-    if 'value_dtype' in metafunc.fixturenames:
+    elif 'key_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("key_dtype", ['uint32'], scope='module')
+    if 'value_dtype' in params:
         metafunc.parametrize(
             "value_dtype", map(np.dtype, ['uint32', 'float64', ('float64', 4)]),
             scope='module'
         )
+    elif 'value_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("value_dtype", ['uint32'], scope='module')
 
 
 @pytest.fixture(scope='module')
 def sort_program(cl_env, scan_program, key_dtype, value_dtype):
     ctx, cq = cl_env
-    return RadixProgram(ctx, key_dtype, value_dtype)
+    return RadixProgram(ctx, key_dtype, dtype(value_dtype))
 
 
 @pytest.mark.parametrize("size,group_size,bits", [
     (128, 8, 3), (128, 9, 4), (122, 8, 4), (128, 4, 4)
 ])
-def test_sorter_errs(cl_env, sort_program, scan_program, key_dtype, value_dtype,
-                     size, group_size, bits):
+def test_sorter_errs(cl_env, sort_program, scan_program, size, group_size, bits):
     ctx, cq = cl_env
     with pytest.raises(ValueError):
         sorter = RadixSorter(
-            ctx, size, group_size, bits, key_dtype, value_dtype,
-            sort_program, scan_program
+            ctx, size, group_size, bits, program=sort_program, scan_program=scan_program
         )
 
 
-def test_dtype_errs(cl_env, scan_program, sort_program, key_dtype, value_dtype):
+def test_dtype_errs(cl_env, scan_program, sort_program):
     ctx, cq = cl_env
     with pytest.raises(ValueError):
-        sorter = RadixSorter(ctx, 128, 8, 4, key_dtype='uint16', program=sort_program)
+        sorter = RadixSorter(
+            ctx, 128, 8, 4, key_dtype='uint16',
+            program=sort_program, scan_program=scan_program
+        )
     with pytest.raises(ValueError):
-        sorter = RadixSorter(ctx, 128, 8, 4, value_dtype='float16', program=sort_program)
+        sorter = RadixSorter(
+            ctx, 128, 8, 4, value_dtype='uint16',
+            program=sort_program, scan_program=scan_program
+        )
 
 
 @pytest.mark.parametrize("old_shape,new_shape", [((64, 8, 4), (64, 5, 4))])
-def test_sorter_resize_errs(cl_env, sort_program, scan_program, key_dtype, value_dtype,
-                            old_shape, new_shape):
+def test_sorter_resize_errs(cl_env, sort_program, scan_program, old_shape, new_shape):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, *old_shape, key_dtype=key_dtype, value_dtype=value_dtype,
-        program=sort_program, scan_program=scan_program
+        ctx, *old_shape, program=sort_program, scan_program=scan_program
     )
     with pytest.raises(ValueError):
         sorter.resize(*new_shape)
@@ -59,11 +67,12 @@ def test_sorter_resize_errs(cl_env, sort_program, scan_program, key_dtype, value
 @pytest.mark.parametrize("bits,group_size,expected", [
     (1, 4, 32), (2, 4, 16), (4, 8, 8), (8, 128, 4)
 ])
-def test_num_passes(cl_env, sort_program, scan_program, key_dtype, value_dtype,
+def test_num_passes(cl_env, sort_program, scan_program, key_dtype,
                     bits, group_size, expected):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, 512, group_size, bits, key_dtype, value_dtype, sort_program, scan_program
+        ctx, 512, group_size, bits, key_dtype,
+        program=sort_program, scan_program=scan_program
     )
     if key_dtype == np.dtype('uint64'):
         expected *= 2
@@ -71,11 +80,10 @@ def test_num_passes(cl_env, sort_program, scan_program, key_dtype, value_dtype,
 
 
 @pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32), (32, 16)])
-def test_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
-                size, group_size):
+def test_sorter(cl_env, sort_program, scan_program, key_dtype, size, group_size):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, size, group_size, key_dtype=key_dtype, value_dtype=value_dtype,
+        ctx, size, group_size, key_dtype=key_dtype,
         program=sort_program, scan_program=scan_program
     )
     data = np.random.randint(500, size=size, dtype=key_dtype)
@@ -99,11 +107,11 @@ def test_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
 @pytest.mark.parametrize("old_shape,new_shape", [
     ((15360,32), (32,8)), ((32,8), (15360,32)),
 ])
-def test_sorter_resized(cl_env, sort_program, scan_program, key_dtype, value_dtype,
+def test_sorter_resized(cl_env, sort_program, scan_program, key_dtype,
                         old_shape, new_shape):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, *old_shape, key_dtype=key_dtype, value_dtype=value_dtype,
+        ctx, *old_shape, key_dtype=key_dtype,
         program=sort_program, scan_program=scan_program
     )
     sorter.resize(*new_shape)
@@ -131,6 +139,8 @@ def test_sorter_resized(cl_env, sort_program, scan_program, key_dtype, value_dty
 def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
                     size, group_size):
     ctx, cq = cl_env
+    value_dtype = np.dtype(value_dtype)
+
     sorter = RadixSorter(
         ctx, size, group_size, key_dtype=key_dtype, value_dtype=value_dtype,
         program=sort_program, scan_program=scan_program
