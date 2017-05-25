@@ -16,8 +16,9 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("key_dtype", ['uint32'], scope='module')
     if 'value_dtype' in params:
         metafunc.parametrize(
-            "value_dtype", map(np.dtype, ['uint32', 'float64', ('float64', 4)]),
-            scope='module'
+            "value_dtype", map(np.dtype, [
+                'uint32', 'float64', ('float64', 3), ('float64', 4)
+            ]), scope='module'
         )
     elif 'value_dtype' in metafunc.fixturenames:
         metafunc.parametrize("value_dtype", ['uint32'], scope='module')
@@ -152,15 +153,31 @@ def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
 
     values = np.random.uniform(-1000, 1000, size=(size,) + value_dtype.shape)
     values = values.astype(dtype=value_dtype.base)
+
+    if value_dtype.shape == (3,):
+        values_bytes = values.dtype.itemsize * size * 4
+        values_shape = (size, 4)
+    else:
+        values_bytes = values.nbytes
+        values_shape = values.shape
     values_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
+        ctx, cl.mem_flags.READ_ONLY, values_bytes
     )
+    (values_map, _) = cl.enqueue_map_buffer(
+        cq, values_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, values_shape, values.dtype, is_blocking=True
+    )
+    if value_dtype.shape == (3,):
+        values_map[:, :3] = values
+    else:
+        values_map[...] = values
+    del values_map
 
     out_keys_buf = cl.Buffer(
         ctx, cl.mem_flags.WRITE_ONLY , keys.nbytes
     )
     out_values_buf = cl.Buffer(
-        ctx, cl.mem_flags.WRITE_ONLY , values.nbytes
+        ctx, cl.mem_flags.WRITE_ONLY , values_bytes
     )
 
     calc_sort = sorter.sort(cq, keys_buf, out_keys_buf, values_buf, out_values_buf)
@@ -174,10 +191,14 @@ def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
 
     (out_values_map, _) = cl.enqueue_map_buffer(
         cq, out_values_buf, cl.map_flags.READ,
-        0, values.shape, values.dtype,
+        0, values_shape, values.dtype,
         wait_for=[calc_sort], is_blocking=True
     )
-    np.testing.assert_equal(out_values_map, values[np.argsort(keys, kind='mergesort')])
+    if value_dtype.shape == (3,):
+        out_values = out_values_map[:, :3]
+    else:
+        out_values = out_values_map
+    np.testing.assert_equal(out_values, values[np.argsort(keys, kind='mergesort')])
 
 
 def test_auto_program(cl_env):

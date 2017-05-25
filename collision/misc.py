@@ -33,7 +33,7 @@ c_unsigned_dtypes = list(map('u{}'.format, c_integer_dtypes))
 c_float_dtypes = ['half', 'float', 'double']
 c_dtypes = c_integer_dtypes + c_unsigned_dtypes + c_float_dtypes
 
-cl_vector_sizes = {2 ** (n + 1) for n in range(4)}
+cl_vector_sizes = {2 ** (n + 1) for n in range(4)} | {3}
 
 np_c_dtypes = dict(zip(map(dtype, np_dtypes), c_dtypes))
 

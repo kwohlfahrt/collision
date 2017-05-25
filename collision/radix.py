@@ -119,11 +119,16 @@ class RadixSorter:
              in_values_buf=None, out_values_buf=None, wait_for=None):
         wait_for = wait_for or []
 
+        if self.program.value_dtype.shape != (3,):
+            value_size = self.program.value_dtype.itemsize
+        else:
+            value_dtype = self.program.value_dtype.base
+            value_size = dtype((value_dtype, 4)).itemsize
         local_keys = cl.LocalMemory(
             self.group_size * 2 * self.program.key_dtype.itemsize
         )
         local_values = cl.LocalMemory(
-            self.group_size * 2 * self.program.value_dtype.itemsize
+            self.group_size * 2 * value_size
         )
         local_count = cl.LocalMemory(
             self.group_size * 2 * self.histogram_dtype.itemsize
@@ -156,9 +161,10 @@ class RadixSorter:
             )
             wait_for = [fill_keys]
             if in_values_buf is not None and out_values_buf is not None:
+                # Copying the whole buffer is faster than a 3-vector rect
                 fill_values = cl.enqueue_copy(
                     cq, in_values_buf, out_values_buf, wait_for=[calc_scatter],
-                    byte_count=self.size * self.program.value_dtype.itemsize,
+                    byte_count=self.size * value_size,
                 )
                 wait_for.append(fill_values)
         return calc_scatter
