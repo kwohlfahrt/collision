@@ -6,11 +6,6 @@ from .common import cl_env
 
 np.random.seed(4)
 
-def pytest_generate_tests(metafunc):
-    if 'value_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("value_dtype", ['uint32', 'uint64'], scope='module')
-
-
 @pytest.fixture(scope='module')
 def scan_program(cl_env):
     ctx, cq = cl_env

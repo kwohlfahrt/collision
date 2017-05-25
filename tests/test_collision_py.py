@@ -1,12 +1,16 @@
 import numpy as np
 import pyopencl as cl
 import pytest
+from inspect import signature
 from collision.collision import *
 from .common import cl_env
 
 def pytest_generate_tests(metafunc):
-    if 'coord_dtype' in metafunc.fixturenames:
+    params = signature(metafunc.function).parameters
+    if 'coord_dtype' in params:
         metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
+    elif 'coord_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("coord_dtype", ['float32'], scope='module')
 
 
 @pytest.fixture(scope='module')
@@ -35,10 +39,9 @@ def find_collisions(coords, radii):
 @pytest.mark.parametrize("size,ngroups,group_size,expected", [
     (48, 3, 8, 48), (47, 3, 8, 48), (49, 3, 8, 64),
 ])
-def test_padded_size(cl_env, collision_programs, coord_dtype,
-                     size, ngroups, group_size, expected):
+def test_padded_size(cl_env, collision_programs, size, ngroups, group_size, expected):
     ctx, cq = cl_env
-    collider = Collider(ctx, size, ngroups, group_size, coord_dtype, *collision_programs)
+    collider = Collider(ctx, size, ngroups, group_size, 'float32', *collision_programs)
     assert collider.padded_size == expected
 
 

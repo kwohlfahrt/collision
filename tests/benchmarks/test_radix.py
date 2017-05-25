@@ -1,16 +1,22 @@
 import numpy as np
 import pyopencl as cl
 import pytest
+from inspect import signature
 from functools import partial
 from collision.radix import RadixProgram, RadixSorter
 from ..common import cl_env
 from .test_scan import scan_program
 
 def pytest_generate_tests(metafunc):
-    if 'key_dtype' in metafunc.fixturenames:
+    params = signature(metafunc.function).parameters
+    if 'key_dtype' in params:
         metafunc.parametrize("key_dtype", ['uint32', 'uint64'], scope='module')
-    if 'value_dtype' in metafunc.fixturenames:
+    elif 'key_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("key_dtype", ['uint32'], scope='module')
+    if 'value_dtype' in params:
         metafunc.parametrize("value_dtype", ['uint32', 'float64'], scope='module')
+    elif 'value_dtype' in metafunc.fixturenames:
+        metafunc.parametrize("value_dtype", ['uint32'], scope='module')
 
 
 @pytest.fixture(scope='module')
@@ -39,11 +45,11 @@ def radix_sort(cq, sorter, *args):
     (307200, partial(np.random.randint, 0, 307200), 128, 100),
     (307200, np.arange, 128, 100),
 ])
-def test_radix_sort(cl_env, radix_program, scan_program, key_dtype, value_dtype,
+def test_radix_sort(cl_env, radix_program, scan_program, key_dtype,
                     size, gen, group_size, rounds, benchmark):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, size, group_size, key_dtype=key_dtype, value_dtype=value_dtype,
+        ctx, size, group_size, key_dtype=key_dtype,
         program=radix_program, scan_program=scan_program
     )
 

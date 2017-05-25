@@ -2,9 +2,11 @@ import numpy as np
 import pyopencl as cl
 from pathlib import Path
 import pytest
+from inspect import signature
 from itertools import product as cartesian
 from collision.collision import Node
 from .common import cl_env
+from collision.misc import dtype_decl
 
 np.random.seed(4)
 
@@ -17,16 +19,22 @@ kernel_args = {'generateBVH': None,
 
 
 def pytest_generate_tests(metafunc):
-    if 'coord_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
+    params = signature(metafunc.function).parameters
+    if 'coord_dtype' in params:
+        metafunc.parametrize(
+            "coord_dtype", map(np.dtype, ['float32', 'float64']), scope='module'
+        )
+    elif 'coord_dtype' in metafunc.fixturenames:
+        metafunc.parametrize(
+            "coord_dtype", map(np.dtype, ['float32']), scope='module'
+        )
 
 
 @pytest.fixture(scope='module')
 def kernels(cl_env, coord_dtype):
     ctx, cq = cl_env
 
-    c_dtypes = {'float32': 'float', 'float64': 'double'}
-    buildopts = ["-D DTYPE={}".format(c_dtypes[coord_dtype])]
+    buildopts = ["-D DTYPE={}".format(dtype_decl(coord_dtype))]
 
     src = Path(__file__).parent / ".." / "collision"/ "collision.cl"
     with src.open("r") as f:
