@@ -1,4 +1,4 @@
-from numpy import dtype
+from numpy import dtype, array
 from pathlib import Path
 import pyopencl as cl
 from .misc import Program, np_unsigned_dtypes, dtype_decl
@@ -11,7 +11,7 @@ class OffsetProgram(Program):
     def __init__(self, ctx, value_dtype=dtype('uint32'), offset_dtype=dtype('uint32')):
         self.value_dtype = dtype(value_dtype)
         self.offset_dtype = dtype(offset_dtype)
-        self.kernel_args = {'find_offsets': [None, None, value_dtype]}
+        self.kernel_args = {'find_offsets': [None, None]}
 
         if self.value_dtype not in np_unsigned_dtypes:
             raise ValueError("Invalid value dtype: {}".format(self.value_dtype))
@@ -40,6 +40,10 @@ class OffsetFinder:
     def find_offsets(self, cq, values_buf, n_values, offsets_buf, n_offsets,
                      wait_for=None):
         wait_for = wait_for or []
+        fill_offsets = cl.enqueue_fill_buffer(
+            cq, offsets_buf, array(n_values, dtype=self.program.offset_dtype), 0,
+            n_offsets * self.program.offset_dtype.itemsize, wait_for=wait_for
+        )
         return self.program.kernels['find_offsets'](
-            cq, (n_values - 1,), None, values_buf, offsets_buf, n_offsets
+            cq, (n_values - 1,), None, values_buf, offsets_buf, wait_for=[fill_offsets],
         )

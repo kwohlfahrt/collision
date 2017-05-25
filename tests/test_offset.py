@@ -14,7 +14,7 @@ def pytest_generate_tests(metafunc):
 
 @pytest.fixture(scope='module')
 def offset_kernels(cl_env, offset_dtype, value_dtype):
-    kernel_args = {'find_offsets': [None, None, value_dtype]}
+    kernel_args = {'find_offsets': [None, None]}
     ctx, cq = cl_env
 
     src = Path(__file__).parent / ".." / "collision" / "offset.cl"
@@ -33,13 +33,13 @@ def test_offset(cl_env, offset_kernels, offset_dtype, value_dtype):
     ctx, cq = cl_env
 
     values = np.array([0, 0, 1, 1, 1, 1, 1, 3, 3, 3, 4, 5, 5], dtype=value_dtype)
-    expected = np.array([0, 2, 7, 7, 10, 11, 13], dtype=offset_dtype)
+    expected = np.array([0, 2, 7, 7, 10, 11,], dtype=offset_dtype)
     values_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.HOST_NO_ACCESS |
                            cl.mem_flags.COPY_HOST_PTR, hostbuf=values)
     offset_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY | cl.mem_flags.HOST_READ_ONLY,
                            expected.nbytes)
     e = offset_kernels['find_offsets'](
-        cq, (len(values) - 1,), None, values_buf, offset_buf, values.max()
+        cq, (len(values) - 1,), None, values_buf, offset_buf,
     )
     (offset_map, _) = cl.enqueue_map_buffer(
         cq, offset_buf, cl.map_flags.READ, 0,
