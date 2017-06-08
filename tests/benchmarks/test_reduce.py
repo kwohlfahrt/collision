@@ -23,7 +23,7 @@ def test_reducer(cl_env, reduce_program, size, ngroups, group_size, rounds, benc
     ctx, cq = cl_env
     reducer = Reducer(ctx, ngroups, group_size, program=reduce_program)
 
-    values = np.random.uniform(0.0, 1.0, size=(size, 3)).astype('float32')
+    values = np.random.uniform(0.0, 1.0, size=(size, 4)).astype('float32')
     expected = np.array([np.min(values, axis=0), np.max(values, axis=0)])
 
     values_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
@@ -38,4 +38,4 @@ def test_reducer(cl_env, reduce_program, size, ngroups, group_size, rounds, benc
         0, expected.shape, expected.dtype,
         wait_for=[], is_blocking=True
     )
-    np.testing.assert_equal(output_map, expected)
+    np.testing.assert_equal(output_map[..., :3], expected[..., :3])

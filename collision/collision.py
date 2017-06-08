@@ -2,7 +2,7 @@ from numpy import dtype, zeros, array
 from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
-from .misc import Program, roundUp
+from .misc import Program, roundUp, dtype_decl, np_float_dtypes
 from .radix import RadixSorter
 from .reduce import Reducer
 
@@ -20,15 +20,11 @@ class CollisionProgram(Program):
 
     def __init__(self, ctx, coord_dtype=dtype('float32')):
         coord_dtype = dtype(coord_dtype)
-        if coord_dtype == dtype('float32'):
-            def_dtype = 'float'
-        elif coord_dtype == dtype('float64'):
-            def_dtype = 'double'
-        else:
+        if coord_dtype not in np_float_dtypes:
             raise ValueError("Invalid dtype: {}".format(coord_dtype))
         self.coord_dtype = coord_dtype
 
-        super().__init__(ctx, ["-DDTYPE={}".format(def_dtype)])
+        super().__init__(ctx, ["-DDTYPE={}".format(dtype_decl(coord_dtype))])
 
 
 class Collider:
@@ -111,7 +107,7 @@ class Collider:
             )
             self._bounds_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-                self.n_nodes * 2 * 3 * self.program.coord_dtype.itemsize
+                self.n_nodes * 2 * 4 * self.program.coord_dtype.itemsize
             )
             self._flags_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,

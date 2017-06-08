@@ -31,11 +31,9 @@ unsigned int morton(VTYPE pos, const VTYPE min, const VTYPE max) {
 }
 
 kernel void calculateCodes(global unsigned int * const codes,
-                           const global DTYPE * const coords,
-                           const global DTYPE * const range) {
-    const VTYPE min = vload3(0, range);
-    const VTYPE max = vload3(1, range);
-    codes[get_global_id(0)] = morton(vload3(get_global_id(0), coords), min, max);
+                           const global VTYPE * const coords,
+                           const global VTYPE * const range) {
+    codes[get_global_id(0)] = morton(coords[get_global_id(0)], range[0], range[1]);
 }
 
 struct Node {
@@ -121,16 +119,15 @@ struct Bound {
 };
 
 kernel void leafBounds(global struct Bound * const bounds,
-                       const global DTYPE * const coords,
+                       const global VTYPE * const coords,
                        const global DTYPE * const radii,
                        const global struct Node * const nodes) {
     const unsigned int n = get_global_size(0);
     const size_t leaf_start = n - 1;
     size_t node_idx = leaf_start + get_global_id(0);
     const unsigned int coords_idx = nodes[node_idx].leaf.id;
-    VTYPE coord = vload3(coords_idx, coords);
-    bounds[node_idx].min = coord - radii[coords_idx];
-    bounds[node_idx].max = coord + radii[coords_idx];
+    bounds[node_idx].min = coords[coords_idx] - radii[coords_idx];
+    bounds[node_idx].max = coords[coords_idx] + radii[coords_idx];
 }
 
 kernel void internalBounds(global struct Bound * const bounds,

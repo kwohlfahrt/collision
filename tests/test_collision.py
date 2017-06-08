@@ -198,8 +198,15 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
                       ( 1, 3, [3, -1])], dtype=Node)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -251,16 +258,31 @@ def test_codes(cl_env, kernels, coord_dtype):
                        [-4.0,-6.0, 3.0],
                        [-5.0, 0.0,-1.0],
                        [-5.0, 0.5,-0.5]], dtype=coord_dtype)
+    coord_range = np.array([coords.min(axis=0),
+                            coords.max(axis=0)], dtype=coords.dtype)
     expected = np.array([862940378, 862940378, 1073741823,
                          20332620, 302580864, 306295426], dtype='int32')
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     range_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-        hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)
+        ctx, cl.mem_flags.READ_ONLY, 2 * 4 * coord_dtype.itemsize
     )
+    (range_map, _) = cl.enqueue_map_buffer(
+        cq, range_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coord_range), 4), coord_dtype,
+        is_blocking=True
+    )
+    range_map[..., :3] = coord_range
+    del range_map
     codes_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE, len(coords) * np.dtype('uint32').itemsize
     )
@@ -291,8 +313,15 @@ def test_traverse(cl_env, kernels, coord_dtype):
     n_nodes = len(coords) * 2 - 1
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     range_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
         hostbuf=np.array([coords.min(axis=0), coords.max(axis=0)], dtype=coords.dtype)

@@ -8,9 +8,11 @@ from .common import cl_env
 def pytest_generate_tests(metafunc):
     params = signature(metafunc.function).parameters
     if 'coord_dtype' in params:
-        metafunc.parametrize("coord_dtype", ['float32', 'float64'], scope='module')
+        metafunc.parametrize(
+            "coord_dtype", map(dtype, ['float32', 'float64']), scope='module'
+        )
     elif 'coord_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("coord_dtype", ['float32'], scope='module')
+        metafunc.parametrize("coord_dtype", [dtype('float32')], scope='module')
 
 
 @pytest.fixture(scope='module')
@@ -60,8 +62,15 @@ def test_collision(cl_env, coord_dtype, collision_programs):
     collider = Collider(ctx, len(coords), 3, 8, coord_dtype, *collision_programs)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -103,8 +112,15 @@ def test_random_collision(cl_env, coord_dtype, collision_programs, size, ngroups
     expected = find_collisions(coords, radii)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -153,8 +169,15 @@ def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_s
     expected = find_collisions(coords, radii)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -197,8 +220,15 @@ def test_auto_program(cl_env, coord_dtype, size, ngroups, group_size):
     expected = find_collisions(coords, radii)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -241,8 +271,15 @@ def test_count_only(cl_env, coord_dtype, collision_programs, size, ngroups, grou
     expected = find_collisions(coords, radii)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )
@@ -271,8 +308,15 @@ def test_count_err(cl_env, coord_dtype, collision_programs, size,  ngroups, grou
     expected = find_collisions(coords, radii)
 
     coords_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=coords
+        ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
     )
+    (coords_map, _) = cl.enqueue_map_buffer(
+        cq, coords_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
+        0, (len(coords), 4), coord_dtype,
+        is_blocking=True
+    )
+    coords_map[..., :3] = coords
+    del coords_map
     radii_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=radii
     )

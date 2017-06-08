@@ -1,7 +1,7 @@
 from numpy import dtype, zeros
 from pathlib import Path
 import pyopencl as cl
-from .misc import Program
+from .misc import Program, dtype_decl, np_float_dtypes
 
 class ReductionProgram(Program):
     src = Path(__file__).parent / "reduce.cl"
@@ -10,15 +10,11 @@ class ReductionProgram(Program):
 
     def __init__(self, ctx, coord_dtype=dtype('float32')):
         coord_dtype = dtype(coord_dtype)
-        if coord_dtype == dtype('float32'):
-            def_dtype = 'float'
-        elif coord_dtype == dtype('float64'):
-            def_dtype = 'double'
-        else:
+        if coord_dtype not in np_float_dtypes:
             raise ValueError("Invalid dtype: {}".format(coord_dtype))
         self.coord_dtype = coord_dtype
 
-        super().__init__(ctx, ["-DDTYPE={}".format(def_dtype)])
+        super().__init__(ctx, ["-DDTYPE={}".format(dtype_decl(dtype((coord_dtype, 3))))])
 
 class Reducer:
     def __init__(self, ctx, ngroups, group_size, coord_dtype=dtype('float32'), program=None):
@@ -36,7 +32,7 @@ class Reducer:
 
         self._group_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-            self.group_size * 2 * 3 * self.program.coord_dtype.itemsize
+            self.ngroups * 2 * 4 * self.program.coord_dtype.itemsize
         )
 
     def resize(self, ngroups=None, group_size=None):
@@ -53,7 +49,7 @@ class Reducer:
         if self.group_size != old_group_size:
             self._group_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-                self.group_size * 2 * 3 * self.program.coord_dtype.itemsize
+                self.ngroups * 2 * 4 * self.program.coord_dtype.itemsize
             )
 
     def reduce(self, cq, size, values_buf, output_buf, wait_for=None):
