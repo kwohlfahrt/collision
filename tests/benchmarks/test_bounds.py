@@ -1,13 +1,13 @@
 import numpy as np
 import pyopencl as cl
 import pytest
-from collision.reduce import ReductionProgram, Reducer
+from collision.bounds import BoundsProgram, Bounds
 from ..common import cl_env
 
 @pytest.fixture(scope='module')
 def reduce_program(cl_env):
     ctx, cq = cl_env
-    return ReductionProgram(ctx)
+    return BoundsProgram(ctx)
 
 
 def reduce(cq, reducer, *args):
@@ -21,7 +21,7 @@ def reduce(cq, reducer, *args):
 ])
 def test_reducer(cl_env, reduce_program, size, ngroups, group_size, rounds, benchmark):
     ctx, cq = cl_env
-    reducer = Reducer(ctx, ngroups, group_size, program=reduce_program)
+    reducer = Bounds(ctx, ngroups, group_size, program=reduce_program)
 
     values = np.random.uniform(0.0, 1.0, size=(size, 4)).astype('float32')
     expected = np.array([np.min(values, axis=0), np.max(values, axis=0)])

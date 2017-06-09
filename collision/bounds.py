@@ -3,7 +3,7 @@ from pathlib import Path
 import pyopencl as cl
 from .misc import Program, dtype_decl, dtype_sizeof, np_float_dtypes
 
-class ReductionProgram(Program):
+class BoundsProgram(Program):
     src = Path(__file__).parent / "reduce.cl"
     kernel_args = {'bounds1': [None, dtype('uint64'), None, None],
                    'bounds2': [None, None]}
@@ -12,11 +12,11 @@ class ReductionProgram(Program):
         self.coord_dtype = dtype(coord_dtype)
         super().__init__(ctx, ["-DDTYPE={}".format(dtype_decl(self.coord_dtype))])
 
-class Reducer:
+class Bounds:
     def __init__(self, ctx, ngroups, group_size,
                  coord_dtype=dtype(('float32', 3)), program=None):
         if program is None:
-            program = ReductionProgram(ctx, coord_dtype)
+            program = BoundsProgram(ctx, coord_dtype)
         else:
             if program.context != ctx:
                 raise ValueError("Collider and program context must match")

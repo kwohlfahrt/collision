@@ -4,7 +4,7 @@ from itertools import accumulate, chain, tee
 import pyopencl as cl
 from .misc import Program, roundUp, dtype_decl, np_float_dtypes
 from .radix import RadixSorter
-from .reduce import Reducer
+from .bounds import Bounds
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
@@ -44,9 +44,9 @@ class Collider:
             key_dtype=self.code_dtype, value_dtype=self.id_dtype,
             program=sorter_programs[0], scan_program=sorter_programs[1]
         )
-        self.reducer = Reducer(ctx, ngroups, group_size,
-                               coord_dtype=dtype((coord_dtype, 3)),
-                               program=reducer_program)
+        self.reducer = Bounds(ctx, ngroups, group_size,
+                              coord_dtype=dtype((coord_dtype, 3)),
+                              program=reducer_program)
         if program is None:
             program = CollisionProgram(ctx, coord_dtype)
         else:

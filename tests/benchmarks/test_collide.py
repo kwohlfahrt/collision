@@ -7,13 +7,13 @@ from ..common import cl_env
 @pytest.fixture(scope='module')
 def collision_programs(cl_env):
     from collision.radix import RadixProgram, PrefixScanProgram
-    from collision.reduce import ReductionProgram
+    from collision.bounds import BoundsProgram
 
     ctx, cq = cl_env
     program = CollisionProgram(ctx)
     radix_program = RadixProgram(ctx)
     scan_program = PrefixScanProgram(ctx)
-    reducer_program = ReductionProgram(ctx)
+    reducer_program = BoundsProgram(ctx)
     return program, (radix_program, scan_program), reducer_program
 
 def collide(cq, collider, *args):

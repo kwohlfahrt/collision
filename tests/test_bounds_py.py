@@ -1,7 +1,7 @@
 import numpy as np
 import pyopencl as cl
 import pytest
-from collision.reduce import *
+from collision.bounds import *
 from collision.misc import dtype_sizeof
 from .common import cl_env
 
@@ -14,11 +14,11 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture(scope='module')
 def program(cl_env, coord_dtype):
     ctx, cq = cl_env
-    return ReductionProgram(ctx, coord_dtype)
+    return BoundsProgram(ctx, coord_dtype)
 
 def test_negative_bounds(cl_env, program, coord_dtype):
     ctx, cq = cl_env
-    reducer = Reducer(ctx, 2, 4, coord_dtype, program)
+    reducer = Bounds(ctx, 2, 4, coord_dtype, program)
     if coord_dtype.shape == (3,):
         value_dtype = dtype((coord_dtype.base, 4))
     else:
@@ -51,7 +51,7 @@ def test_negative_bounds(cl_env, program, coord_dtype):
 def test_bounds(cl_env, program, coord_dtype, size, ngroups, group_size):
     ctx, cq = cl_env
 
-    reducer = Reducer(ctx, ngroups, group_size, coord_dtype, program)
+    reducer = Bounds(ctx, ngroups, group_size, coord_dtype, program)
     if coord_dtype.shape == (3,):
         value_dtype = dtype((coord_dtype.base, 4))
     else:
@@ -84,7 +84,7 @@ def test_bounds(cl_env, program, coord_dtype, size, ngroups, group_size):
 def test_bounds_resized(cl_env, program, coord_dtype, size, old_shape, new_shape):
     ctx, cq = cl_env
 
-    reducer = Reducer(ctx, *old_shape, coord_dtype, program=program)
+    reducer = Bounds(ctx, *old_shape, coord_dtype, program=program)
     reducer.resize(*new_shape)
     if coord_dtype.shape == (3,):
         value_dtype = dtype((coord_dtype.base, 4))
@@ -119,7 +119,7 @@ def test_bounds_resized(cl_env, program, coord_dtype, size, old_shape, new_shape
 def test_auto_program(cl_env, size, ngroups, group_size, coord_dtype):
     ctx, cq = cl_env
 
-    reducer = Reducer(ctx, ngroups, group_size, coord_dtype)
+    reducer = Bounds(ctx, ngroups, group_size, coord_dtype)
     if coord_dtype.shape == (3,):
         value_dtype = dtype((coord_dtype.base, 4))
     else:

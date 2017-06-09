@@ -18,13 +18,13 @@ def pytest_generate_tests(metafunc):
 @pytest.fixture(scope='module')
 def collision_programs(cl_env, coord_dtype):
     from collision.radix import RadixProgram, PrefixScanProgram
-    from collision.reduce import ReductionProgram
+    from collision.bounds import BoundsProgram
 
     ctx, cq = cl_env
     program = CollisionProgram(ctx, coord_dtype)
     radix_program = RadixProgram(ctx)
     scan_program = PrefixScanProgram(ctx)
-    reducer_program = ReductionProgram(ctx, (coord_dtype, 3))
+    reducer_program = BoundsProgram(ctx, (coord_dtype, 3))
     return program, (radix_program, scan_program), reducer_program
 
 
