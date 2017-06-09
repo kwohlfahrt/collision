@@ -1,5 +1,7 @@
 import pyopencl as cl
 from numpy import dtype
+from functools import reduce
+import operator as op
 
 class Program:
     def __init__(self, ctx, options=None):
@@ -22,6 +24,9 @@ def roundUp(x, base=1):
 
 def nextPowerOf2(x):
     return 2 ** (x - 1).bit_length()
+
+def product(xs):
+    return reduce(op.mul, xs, 1)
 
 np_integer_dtypes = list(map('int{}'.format, [8, 16, 32, 64]))
 np_unsigned_dtypes = list(map('u{}'.format, np_integer_dtypes))
@@ -47,3 +52,15 @@ def dtype_decl(dt):
     if n not in cl_vector_sizes:
         raise ValueError("Invalid vector size: {}".format(n))
     return "{}{}".format(np_c_dtypes[dt.base], n)
+
+def dtype_sizeof(dt):
+    if dt.base not in np_dtypes:
+        raise ValueError("Data type does not have an OpenCL equivalent: {}"
+                            .format(dt))
+    *shape, n = dt.shape or (1,)
+    if n != 1 and n not in cl_vector_sizes:
+        raise ValueError("Invalid vector size: {}".format(n))
+
+    n = 4 if n == 3 else n
+
+    return dt.base.itemsize * product(shape) * n

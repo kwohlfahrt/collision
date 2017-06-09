@@ -17,6 +17,11 @@ def test_nextPowerOf2(x, expected):
     assert nextPowerOf2(x) == expected
 
 
+def test_product():
+    assert product([1, 2, 3]) == 6
+    assert product([]) == 1
+
+
 def test_np_dtype():
     assert dtype_decl(np.dtype('uint32')) == 'uint'
     assert dtype_decl(np.dtype('float16')) == 'half'
@@ -24,4 +29,13 @@ def test_np_dtype():
     with pytest.raises(ValueError):
         dtype_decl(np.dtype(('float16', 5)))
     with pytest.raises(ValueError):
-        dtype_decl(np.dtype(('float16', (4, 4))))
+        dtype_decl(np.dtype(('float16', (3, 4))))
+
+
+def test_dtype_sizeof():
+    assert dtype_sizeof(np.dtype('uint32')) == 4
+    assert dtype_sizeof(np.dtype('int64')) == 8
+    assert dtype_sizeof(np.dtype(('float32', 3))) == 16
+    assert dtype_sizeof(np.dtype(('float32', (4, 3)))) == 16 * 4
+    with pytest.raises(ValueError):
+        dtype_sizeof(np.dtype(('float16', 5)))
