@@ -1,10 +1,10 @@
 // http://developer.amd.com/resources/articles-whitepapers/opencl-optimization-case-study-simple-reductions/
 
-kernel void bounds1(const global DTYPE * const coords,
+kernel void bounds1(const global VALDTYPE * const coords,
                     const unsigned long n,
-                    global DTYPE * const group_bounds,
-                    local DTYPE * const scratch) {
-    DTYPE accumulator[2] = {(DTYPE)(INFINITY), (DTYPE)(-INFINITY)};
+                    global VALDTYPE * const group_bounds,
+                    local VALDTYPE * const scratch) {
+    VALDTYPE accumulator[ACC_SIZE] = ACC_INIT;
 
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
         accumulator[0] = min(accumulator[0], coords[i]);
@@ -29,8 +29,8 @@ kernel void bounds1(const global DTYPE * const coords,
     }
 }
 
-kernel void bounds2(global DTYPE * const group_bounds,
-                    global DTYPE * const output) {
+kernel void bounds2(global VALDTYPE * const group_bounds,
+                    global VALDTYPE * const output) {
     for (size_t o = get_local_size(0) / 2; o > 0; o /= 2) {
         if (get_local_id(0) < o) {
             size_t idxs[2] = {2 * get_local_id(0), 2 * (get_local_id(0) + o)};

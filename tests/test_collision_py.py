@@ -334,4 +334,4 @@ def test_collider_dtype(cl_env, dt):
     ctx, cq = cl_env
     collider = Collider(ctx, 100, 5, 8, coord_dtype=dt)
     assert collider.program.coord_dtype == np.dtype(dt)
-    assert collider.reducer.program.coord_dtype == np.dtype((dt, 3))
+    assert collider.reducer.program.value_dtype == np.dtype((dt, 3))
