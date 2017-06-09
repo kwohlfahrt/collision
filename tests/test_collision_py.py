@@ -24,7 +24,7 @@ def collision_programs(cl_env, coord_dtype):
     program = CollisionProgram(ctx, coord_dtype)
     radix_program = RadixProgram(ctx)
     scan_program = PrefixScanProgram(ctx)
-    reducer_program = ReductionProgram(ctx, coord_dtype)
+    reducer_program = ReductionProgram(ctx, (coord_dtype, 3))
     return program, (radix_program, scan_program), reducer_program
 
 
@@ -334,4 +334,4 @@ def test_collider_dtype(cl_env, dt):
     ctx, cq = cl_env
     collider = Collider(ctx, 100, 5, 8, coord_dtype=dt)
     assert collider.program.coord_dtype == np.dtype(dt)
-    assert collider.reducer.program.coord_dtype == np.dtype(dt)
+    assert collider.reducer.program.coord_dtype == np.dtype((dt, 3))

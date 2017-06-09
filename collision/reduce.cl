@@ -4,8 +4,8 @@ kernel void bounds1(const global DTYPE * const coords,
                     const unsigned long n,
                     global DTYPE * const group_bounds,
                     local DTYPE * const scratch) {
-    DTYPE accumulator[2] = {{INFINITY, INFINITY, INFINITY},
-                            {-INFINITY, -INFINITY, -INFINITY}};
+    DTYPE accumulator[2] = {(DTYPE)(INFINITY), (DTYPE)(-INFINITY)};
+
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
         accumulator[0] = min(accumulator[0], coords[i]);
         accumulator[1] = max(accumulator[1], coords[i]);

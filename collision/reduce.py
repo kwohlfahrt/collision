@@ -1,23 +1,20 @@
-from numpy import dtype, zeros
+from numpy import dtype
 from pathlib import Path
 import pyopencl as cl
-from .misc import Program, dtype_decl, np_float_dtypes
+from .misc import Program, dtype_decl, dtype_sizeof, np_float_dtypes
 
 class ReductionProgram(Program):
     src = Path(__file__).parent / "reduce.cl"
     kernel_args = {'bounds1': [None, dtype('uint64'), None, None],
                    'bounds2': [None, None]}
 
-    def __init__(self, ctx, coord_dtype=dtype('float32')):
-        coord_dtype = dtype(coord_dtype)
-        if coord_dtype not in np_float_dtypes:
-            raise ValueError("Invalid dtype: {}".format(coord_dtype))
-        self.coord_dtype = coord_dtype
-
-        super().__init__(ctx, ["-DDTYPE={}".format(dtype_decl(dtype((coord_dtype, 3))))])
+    def __init__(self, ctx, coord_dtype=dtype(('float32', 3))):
+        self.coord_dtype = dtype(coord_dtype)
+        super().__init__(ctx, ["-DDTYPE={}".format(dtype_decl(self.coord_dtype))])
 
 class Reducer:
-    def __init__(self, ctx, ngroups, group_size, coord_dtype=dtype('float32'), program=None):
+    def __init__(self, ctx, ngroups, group_size,
+                 coord_dtype=dtype(('float32', 3)), program=None):
         if program is None:
             program = ReductionProgram(ctx, coord_dtype)
         else:
@@ -32,7 +29,7 @@ class Reducer:
 
         self._group_buf = cl.Buffer(
             ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-            self.ngroups * 2 * 4 * self.program.coord_dtype.itemsize
+            self.ngroups * 2 * dtype_sizeof(self.program.coord_dtype)
         )
 
     def resize(self, ngroups=None, group_size=None):
@@ -49,14 +46,14 @@ class Reducer:
         if self.group_size != old_group_size:
             self._group_buf = cl.Buffer(
                 ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.HOST_NO_ACCESS,
-                self.ngroups * 2 * 4 * self.program.coord_dtype.itemsize
+                self.ngroups * 2 * dtype_sizeof(self.program.coord_dtype)
             )
 
     def reduce(self, cq, size, values_buf, output_buf, wait_for=None):
         e = self.program.kernels['bounds1'](
             cq, (self.ngroups,), (self.group_size,),
             values_buf, size, self._group_buf,
-            cl.LocalMemory(2 * 4 * self.group_size * self.program.coord_dtype.itemsize),
+            cl.LocalMemory(self.group_size * 2 * dtype_sizeof(self.program.coord_dtype)),
             g_times_l=True, wait_for=wait_for
         )
 
