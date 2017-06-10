@@ -54,13 +54,12 @@ def dtype_decl(dt):
     return "{}{}".format(np_c_dtypes[dt.base], n)
 
 def dtype_sizeof(dt):
-    if dt.base not in np_dtypes:
-        raise ValueError("Data type does not have an OpenCL equivalent: {}"
-                            .format(dt))
-    *shape, n = dt.shape or (1,)
-    if n != 1 and n not in cl_vector_sizes:
-        raise ValueError("Invalid vector size: {}".format(n))
-
-    n = 4 if n == 3 else n
-
-    return dt.base.itemsize * product(shape) * n
+    if dt.base in np_dtypes:
+        *shape, n = dt.shape or (1,)
+        if n != 1 and n not in cl_vector_sizes:
+            raise ValueError("Invalid vector size: {}".format(n))
+        n = 4 if n == 3 else n
+        return dt.base.itemsize * product(shape) * n
+    else:
+        subtype, shape = dt.subdtype
+        return product(shape) * dtype_sizeof(subtype)

@@ -37,5 +37,10 @@ def test_dtype_sizeof():
     assert dtype_sizeof(np.dtype('int64')) == 8
     assert dtype_sizeof(np.dtype(('float32', 3))) == 16
     assert dtype_sizeof(np.dtype(('float32', (4, 3)))) == 16 * 4
+    assert dtype_sizeof(np.dtype((('float32', 3), 4))) == 16 * 4
     with pytest.raises(ValueError):
         dtype_sizeof(np.dtype(('float16', 5)))
+    with pytest.raises(TypeError):
+        dtype_sizeof(np.dtype([('foo', 'float32')]))
+    with pytest.raises(TypeError):
+        dtype_sizeof(np.dtype(([('foo', 'float32')], 4)))
