@@ -1,5 +1,7 @@
 // http://developer.amd.com/resources/articles-whitepapers/opencl-optimization-case-study-simple-reductions/
 
+#define ADD(x, y) ((x) + (y))
+
 kernel void bounds1(const global VALDTYPE * const values,
                     const unsigned long n,
                     global VALDTYPE (* const group_accs)[ACC_SIZE],
