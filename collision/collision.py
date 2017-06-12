@@ -2,13 +2,13 @@ from numpy import dtype, zeros, array
 from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
-from .misc import Program, roundUp, dtype_decl, np_float_dtypes
+from .misc import SimpleProgram, roundUp, dtype_decl, np_float_dtypes
 from .radix import RadixSorter
 from .bounds import Bounds
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
 
-class CollisionProgram(Program):
+class CollisionProgram(SimpleProgram):
     src = Path(__file__).parent / "collision.cl"
     kernel_args = {'range': [None],
                    'calculateCodes': [None, None, None],

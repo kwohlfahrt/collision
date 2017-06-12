@@ -3,20 +3,22 @@ from pathlib import Path
 import pyopencl as cl
 from .misc import Program, dtype_decl, dtype_sizeof, np_float_dtypes
 
+from jinja2 import Environment, PackageLoader
+env = Environment(loader=PackageLoader('collision', ''))
+
 class ReductionProgram(Program):
-    src = Path(__file__).parent / "reduce.cl"
     kernel_args = {'bounds1': [None, dtype('uint64'), None, None],
                    'bounds2': [None, None]}
+    template = env.get_template('reduce.cl')
 
     def __init__(self, ctx, value_dtype):
         self.value_dtype = dtype(value_dtype)
-        self.acc_dtype = dtype((value_dtype, len(self.acc_inits)))
-        super().__init__(ctx, [
+        self.acc_dtype = dtype((value_dtype, len(self.accumulator)))
+        acc_inits, acc_funcs = zip(*self.accumulator)
+        src = self.template.render(acc_inits=acc_inits, acc_funcs=acc_funcs)
+        super().__init__(ctx, src, [
             "-DVALDTYPE={}".format(dtype_decl(self.value_dtype)),
-            "-DACC_SIZE={}".format(len(self.acc_inits)),
-            "-DACC_INIT='{{{}}}'".format(
-                ', '.join(map("(VALDTYPE)({})".format, self.acc_inits))
-            ),
+            "-DACC_SIZE={}".format(len(self.accumulator))
         ])
 
 class Reducer:

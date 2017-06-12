@@ -2,7 +2,7 @@ from numpy import dtype
 from .reduce import ReductionProgram, Reducer
 
 class BoundsProgram(ReductionProgram):
-    acc_inits = ["INFINITY", "-INFINITY"]
+    accumulator = [("INFINITY", "min"), ("-INFINITY", "max")]
 
     def __init__(self, ctx, coord_dtype=dtype(('float32', 3))):
         super().__init__(ctx, coord_dtype)

@@ -1,12 +1,12 @@
 from numpy import dtype
 from pathlib import Path
 import pyopencl as cl
-from .misc import Program, nextPowerOf2, roundUp, np_unsigned_dtypes, dtype_decl
+from .misc import SimpleProgram, nextPowerOf2, roundUp, np_unsigned_dtypes, dtype_decl
 from .scan import PrefixScanProgram, PrefixScanner
 
 np_unsigned_dtypes = set(map(dtype, np_unsigned_dtypes))
 
-class RadixProgram(Program):
+class RadixProgram(SimpleProgram):
     src = Path(__file__).parent / "radix.cl"
     kernel_args = {'block_sort': [None, None, None, None, None, None, None, None, None,
                                   dtype('uint8'), dtype('uint8')],

@@ -4,13 +4,12 @@ from functools import reduce
 import operator as op
 
 class Program:
-    def __init__(self, ctx, options=None):
+    def __init__(self, ctx, src, options=None, includes=None):
         options = options or []
-        options.append("-I {}".format(self.src.parent))
+        if includes is not None:
+            options.append(' '.join(map("-I {}".format, includes)))
 
-        with self.src.open("r") as f:
-            self.program = cl.Program(ctx, f.read()).build(' '.join(options))
-
+        self.program = cl.Program(ctx, src).build(' '.join(options))
         self.kernels = {name: getattr(self.program, name) for name in self.kernel_args}
         for name, kernel in self.kernels.items():
             kernel.set_scalar_arg_dtypes(self.kernel_args[name])
@@ -18,6 +17,13 @@ class Program:
     @property
     def context(self):
         return self.program.get_info(cl.program_info.CONTEXT)
+
+
+class SimpleProgram(Program):
+    def __init__(self, ctx, options=None):
+        with self.src.open("r") as f:
+            super().__init__(ctx, f.read(), options, [self.src.parent])
+
 
 def roundUp(x, base=1):
   return (x // base + bool(x % base)) * base

@@ -1,11 +1,11 @@
 from numpy import dtype, array
 from pathlib import Path
 import pyopencl as cl
-from .misc import Program, np_unsigned_dtypes, dtype_decl
+from .misc import SimpleProgram, np_unsigned_dtypes, dtype_decl
 
 np_unsigned_dtypes = set(map(dtype, np_unsigned_dtypes))
 
-class OffsetProgram(Program):
+class OffsetProgram(SimpleProgram):
     src = Path(__file__).parent / "offset.cl"
 
     def __init__(self, ctx, value_dtype=dtype('uint32'), offset_dtype=dtype('uint32')):

@@ -2,12 +2,12 @@ from numpy import dtype, zeros
 from pathlib import Path
 import pyopencl as cl
 from itertools import tee, zip_longest
-from .misc import Program, roundUp, nextPowerOf2
+from .misc import SimpleProgram, roundUp, nextPowerOf2
 
 def ceildiv(a, b):
     return (a + b - 1) // b
 
-class PrefixScanProgram(Program):
+class PrefixScanProgram(SimpleProgram):
     src = Path(__file__).parent / "scan.cl"
     kernel_args = {'local_scan': [None, None, None],
                    'block_scan': [None, None]}
