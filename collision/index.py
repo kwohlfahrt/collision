@@ -7,7 +7,7 @@ np_unsigned_dtypes = set(map(dtype, np_unsigned_dtypes))
 
 class IndexProgram(SimpleProgram):
     src = Path(__file__).parent / "index.cl"
-    kernel_args = {'index': [None, None, None]}
+    kernel_args = {'gather': [None, None, None], 'scatter': [None, None, None]}
 
     def __init__(self, ctx, value_dtype=dtype('uint32'), index_dtype=dtype('uint32')):
         self.value_dtype = dtype(value_dtype)
@@ -34,10 +34,20 @@ class Indexer:
                 raise ValueError("Sorter and program value dtypes must match")
         self.program = program
 
-    def index(self, cq, size, in_values_buf, indices_buf, out_values_buf, wait_for=None):
+    def gather(self, cq, size, in_values_buf, indices_buf, out_values_buf, wait_for=None):
         wait_for = wait_for or []
 
-        index = self.program.kernels['index'](
+        index = self.program.kernels['gather'](
+            cq, (size,), None,
+            in_values_buf, indices_buf, out_values_buf,
+            wait_for=wait_for
+        )
+        return index
+
+    def scatter(self, cq, size, in_values_buf, indices_buf, out_values_buf, wait_for=None):
+        wait_for = wait_for or []
+
+        index = self.program.kernels['scatter'](
             cq, (size,), None,
             in_values_buf, indices_buf, out_values_buf,
             wait_for=wait_for
