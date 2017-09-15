@@ -50,8 +50,10 @@ struct Node {
 } __attribute__((packed));
 
 kernel void fillInternal(global struct Node * const nodes,
-                         const global unsigned int * const ids) {
-    const unsigned int n = get_global_size(0);
+                         const global unsigned int * const ids,
+                         const unsigned int n) {
+    if (get_global_id(0) >= n)
+        return;
     const size_t leaf_start = (n - 1);
     nodes[leaf_start + get_global_id(0)].leaf.id = ids[get_global_id(0)];
     nodes[leaf_start + get_global_id(0)].right_edge = get_global_id(0);

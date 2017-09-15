@@ -12,7 +12,7 @@ class CollisionProgram(SimpleProgram):
     src = Path(__file__).parent / "collision.cl"
     kernel_args = {'range': [None],
                    'calculateCodes': [None, None, None],
-                   'fillInternal': [None, None],
+                   'fillInternal': [None, None, dtype('uint32')],
                    'generateBVH': [None, None],
                    'leafBounds': [None, None, None, None],
                    'internalBounds': [None, None, None],
@@ -36,11 +36,10 @@ class Collider:
     def __init__(self, ctx, size, ngroups, group_size, coord_dtype=dtype('float32'),
                  program=None, sorter_programs=(None, None), reducer_program=None):
         self.size = size
+        self.group_size = group_size
 
-        # self.padded size not available before sorter creation
-        padded_size = self.pad_size(size, group_size)
         self.sorter = RadixSorter(
-            ctx, padded_size, group_size,
+            ctx, self.padded_size, group_size,
             key_dtype=self.code_dtype, value_dtype=self.id_dtype,
             program=sorter_programs[0], scan_program=sorter_programs[1]
         )
@@ -85,11 +84,13 @@ class Collider:
         old_padded_size = self.padded_size
         old_n_nodes = self.n_nodes
 
-        sorter_group_size = group_size if group_size is not None else self.sorter.group_size
-        self.sorter.resize(self.pad_size(self.size, sorter_group_size),
-                           group_size, radix_bits)
+        if size is not None:
+            self.size = size
+        if group_size is not None:
+            self.group_size = group_size
+
+        self.sorter.resize(roundUp(self.size, self.group_size), group_size, radix_bits)
         self.reducer.resize(ngroups, group_size)
-        self.size = size
 
         if old_padded_size != self.padded_size:
             self._ids_bufs = [cl.Buffer(
@@ -119,13 +120,10 @@ class Collider:
     def n_nodes(self):
         return self.size * 2 - 1
 
-    @staticmethod
-    def pad_size(size, group_size):
-        return roundUp(size, 2 * group_size)
-
     @property
     def padded_size(self):
-        return self.pad_size(self.size, self.sorter.group_size)
+        # Sorter requires n % (2 * group_size) == 0
+        return roundUp(self.size, 2 * self.group_size)
 
     def get_collisions(self, cq, coords_buf, radii_buf, n_collisions_buf, collisions_buf,
                        n_collisions, wait_for=None):
@@ -141,7 +139,7 @@ class Collider:
                 0, self.padded_size * self.code_dtype.itemsize
             ))
         fill_ids = self.program.kernels['range'](
-            cq, (self.size,), None,
+            cq, (self.padded_size,), None,
             self._ids_bufs[0]
         )
         clear_flags = cl.enqueue_fill_buffer(
@@ -154,8 +152,9 @@ class Collider:
         )
 
         # Wait here, as first use of external buffer
-        calc_scene_bounds = self.reducer.reduce(cq, self.size, coords_buf, self._bounds_buf,
-                                                wait_for=wait_for)
+        calc_scene_bounds = self.reducer.reduce(
+            cq, self.size, coords_buf, self._bounds_buf, wait_for=wait_for
+        )
 
         calc_codes = self.program.kernels['calculateCodes'](
             cq, (self.size,), None,
@@ -163,12 +162,13 @@ class Collider:
             wait_for=[calc_scene_bounds] + fill_codes
         )
 
-        sort_codes = self.sorter.sort(cq, *self._codes_bufs, *self._ids_bufs,
-                                      wait_for=[calc_codes, fill_ids])
+        sort_codes = self.sorter.sort(
+            cq, *self._codes_bufs, *self._ids_bufs, wait_for=[calc_codes, fill_ids]
+        )
 
         fill_internal = self.program.kernels['fillInternal'](
-            cq, (self.size,), None,
-            self._nodes_buf, self._ids_bufs[1],
+            cq, (roundUp(self.size, self.group_size),), None,
+            self._nodes_buf, self._ids_bufs[1], self.size,
             wait_for=[sort_codes]
         )
         generate_bvh = self.program.kernels['generateBVH'](

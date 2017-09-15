@@ -23,6 +23,7 @@ def collide(cq, collider, *args):
 # Use size large enough that t > 100*μs
 @pytest.mark.parametrize("npoints,rmax,ngroups,group_size,rounds", [
     (307200, 0.06, 8, 128, 10),
+    (307201, 0.06, 8, 128, 10), # Uneven npoints
 ])
 def test_collide(cl_env, collision_programs, npoints, rmax,
                  ngroups, group_size, rounds, benchmark):

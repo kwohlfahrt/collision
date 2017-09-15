@@ -6,12 +6,12 @@ from inspect import signature
 from itertools import product as cartesian
 from collision.collision import Node
 from .common import cl_env
-from collision.misc import dtype_decl
+from collision.misc import dtype_decl, roundUp
 
 np.random.seed(4)
 
 kernel_args = {'generateBVH': None,
-               'fillInternal': None,
+               'fillInternal': [None, None, np.dtype('uint32')],
                'leafBounds': None,
                'internalBounds': None,
                'calculateCodes': None,
@@ -61,8 +61,8 @@ def test_fill_internal(cl_env, kernels):
     )
 
     fill_internal = kernels['fillInternal'](
-        cq, (n,), None,
-        nodes_buf, ids_buf
+        cq, (roundUp(n, 32),), None,
+        nodes_buf, ids_buf, n,
     )
 
     (nodes_map, _) = cl.enqueue_map_buffer(
@@ -96,8 +96,8 @@ def test_generate_bvh(cl_env, kernels):
     )
 
     fill_internal = kernels['fillInternal'](
-        cq, (len(codes),), None,
-        nodes_buf, ids_buf
+        cq, (roundUp(len(codes), 32),), None,
+        nodes_buf, ids_buf, len(codes),
     )
     generate_bvh = kernels['generateBVH'](
         cq, (len(codes) - 1,), None,
@@ -149,8 +149,8 @@ def test_generate_odd_bvh(cl_env, kernels):
     )
 
     fill_internal = kernels['fillInternal'](
-        cq, (len(codes),), None,
-        nodes_buf, ids_buf
+        cq, (roundUp(len(codes), 32),), None,
+        nodes_buf, ids_buf, len(codes),
     )
     generate_bvh = kernels['generateBVH'](
         cq, (len(codes) - 1,), None,
@@ -369,8 +369,8 @@ def test_traverse(cl_env, kernels, coord_dtype):
     )
 
     fill_internal = kernels['fillInternal'](
-        cq, (len(coords),), None,
-        nodes_buf, ids_buf
+        cq, (roundUp(len(coords), 32),), None,
+        nodes_buf, ids_buf, len(coords),
     )
     generate_bvh = kernels['generateBVH'](
         cq, (len(coords)-1,), None,
@@ -461,8 +461,8 @@ def test_problem_codes(cl_env, kernels, coord_dtype):
     )
 
     fill_internal = kernels['fillInternal'](
-        cq, (len(codes),), None,
-        nodes_buf, ids_buf
+        cq, (roundUp(len(codes), 32),), None,
+        nodes_buf, ids_buf, len(codes),
     )
 
     generate_bvh = kernels['generateBVH'](
