@@ -12,7 +12,7 @@ np.random.seed(4)
 
 kernel_args = {'generateBVH': [None, None, np.dtype('uint32')],
                'fillInternal': [None, None, np.dtype('uint32')],
-               'leafBounds': None,
+               'leafBounds': [None, None, None, None, np.dtype('uint32')],
                'internalBounds': None,
                'calculateCodes': [None, None, None, np.dtype('uint32')],
                'traverse': [None, None, np.dtype('uint32'), None, None],}
@@ -225,8 +225,8 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
         0, len(nodes) * np.dtype('uint32').itemsize
     )
     calc_leaf_bounds = kernels['leafBounds'](
-        cq, (len(coords),), None,
-        bounds_buf, coords_buf, radii_buf, nodes_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        bounds_buf, coords_buf, radii_buf, nodes_buf, len(coords),
     )
     calc_bounds = kernels['internalBounds'](
         cq, (len(coords),), None,
@@ -382,8 +382,8 @@ def test_traverse(cl_env, kernels, coord_dtype):
         0, n_nodes * np.dtype('uint32').itemsize
     )
     calc_bounds = kernels['leafBounds'](
-        cq, (len(coords),), None,
-        bounds_buf, coords_buf, radii_buf, nodes_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        bounds_buf, coords_buf, radii_buf, nodes_buf, len(coords),
         wait_for=[generate_bvh]
     )
     calc_bounds = kernels['internalBounds'](

@@ -128,8 +128,11 @@ struct Bound {
 kernel void leafBounds(global struct Bound * const bounds,
                        const global VTYPE * const coords,
                        const global DTYPE * const radii,
-                       const global struct Node * const nodes) {
-    const unsigned int n = get_global_size(0);
+                       const global struct Node * const nodes,
+                       const unsigned int n) {
+    if (get_global_id(0) >= n)
+        return;
+
     const size_t leaf_start = n - 1;
     size_t node_idx = leaf_start + get_global_id(0);
     const unsigned int coords_idx = nodes[node_idx].leaf.id;
