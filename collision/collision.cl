@@ -32,7 +32,10 @@ unsigned int morton(VTYPE pos, const VTYPE min, const VTYPE max) {
 
 kernel void calculateCodes(global unsigned int * const codes,
                            const global VTYPE * const coords,
-                           const global VTYPE * const range) {
+                           const global VTYPE * const range,
+                           const unsigned int n) {
+    if (get_global_id(0) >= n)
+        return;
     codes[get_global_id(0)] = morton(coords[get_global_id(0)], range[0], range[1]);
 }
 

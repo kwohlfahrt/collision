@@ -14,7 +14,7 @@ kernel_args = {'generateBVH': [None, None, np.dtype('uint32')],
                'fillInternal': [None, None, np.dtype('uint32')],
                'leafBounds': None,
                'internalBounds': None,
-               'calculateCodes': None,
+               'calculateCodes': [None, None, None, np.dtype('uint32')],
                'traverse': [None, None, np.dtype('uint32'), None, None],}
 
 
@@ -287,8 +287,8 @@ def test_codes(cl_env, kernels, coord_dtype):
         ctx, cl.mem_flags.READ_WRITE, len(coords) * np.dtype('uint32').itemsize
     )
     calc_codes = kernels['calculateCodes'](
-        cq, (len(coords),), None,
-        codes_buf, coords_buf, range_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        codes_buf, coords_buf, range_buf, len(coords),
     )
 
     (codes_map, _) = cl.enqueue_map_buffer(
@@ -350,8 +350,8 @@ def test_traverse(cl_env, kernels, coord_dtype):
     )
 
     calc_codes = kernels['calculateCodes'](
-        cq, (len(coords),), None,
-        codes_buf, coords_buf, range_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        codes_buf, coords_buf, range_buf, len(coords),
     )
 
     # Would use radix sort

@@ -11,7 +11,7 @@ Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32',
 class CollisionProgram(SimpleProgram):
     src = Path(__file__).parent / "collision.cl"
     kernel_args = {'range': [None],
-                   'calculateCodes': [None, None, None],
+                   'calculateCodes': [None, None, None, dtype('uint32')],
                    'fillInternal': [None, None, dtype('uint32')],
                    'generateBVH': [None, None, dtype('uint32')],
                    'leafBounds': [None, None, None, None],
@@ -157,8 +157,8 @@ class Collider:
         )
 
         calc_codes = self.program.kernels['calculateCodes'](
-            cq, (self.size,), None,
-            self._codes_bufs[0], coords_buf, self._bounds_buf,
+            cq, (roundUp(self.size, self.group_size),), None,
+            self._codes_bufs[0], coords_buf, self._bounds_buf, self.size,
             wait_for=[calc_scene_bounds] + fill_codes
         )
 
