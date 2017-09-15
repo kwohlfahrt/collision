@@ -142,8 +142,10 @@ kernel void leafBounds(global struct Bound * const bounds,
 
 kernel void internalBounds(global struct Bound * const bounds,
                            global unsigned int * const flags,
-                           const global struct Node * const nodes) {
-    const unsigned int n = get_global_size(0);
+                           const global struct Node * const nodes,
+                           const unsigned int n) {
+    if (get_global_id(0) >= n)
+        return;
     const size_t leaf_start = n - 1;
     size_t node_idx = leaf_start + get_global_id(0);
 

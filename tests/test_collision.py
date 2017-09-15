@@ -13,7 +13,7 @@ np.random.seed(4)
 kernel_args = {'generateBVH': [None, None, np.dtype('uint32')],
                'fillInternal': [None, None, np.dtype('uint32')],
                'leafBounds': [None, None, None, None, np.dtype('uint32')],
-               'internalBounds': None,
+               'internalBounds': [None, None, None, np.dtype('uint32')],
                'calculateCodes': [None, None, None, np.dtype('uint32')],
                'traverse': [None, None, np.dtype('uint32'), None, None],}
 
@@ -229,8 +229,8 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
         bounds_buf, coords_buf, radii_buf, nodes_buf, len(coords),
     )
     calc_bounds = kernels['internalBounds'](
-        cq, (len(coords),), None,
-        bounds_buf, flags_buf, nodes_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        bounds_buf, flags_buf, nodes_buf, len(coords),
         wait_for=[calc_leaf_bounds, clear_flags]
     )
     (bounds_map, _) = cl.enqueue_map_buffer(
@@ -387,8 +387,8 @@ def test_traverse(cl_env, kernels, coord_dtype):
         wait_for=[generate_bvh]
     )
     calc_bounds = kernels['internalBounds'](
-        cq, (len(coords),), None,
-        bounds_buf, flags_buf, nodes_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        bounds_buf, flags_buf, nodes_buf, len(coords),
         wait_for=[clear_flags, calc_bounds]
     )
     clear_collisions = cl.enqueue_fill_buffer(
