@@ -15,7 +15,8 @@ kernel_args = {'generateBVH': [None, None, np.dtype('uint32')],
                'leafBounds': [None, None, None, None, np.dtype('uint32')],
                'internalBounds': [None, None, None, np.dtype('uint32')],
                'calculateCodes': [None, None, None, np.dtype('uint32')],
-               'traverse': [None, None, np.dtype('uint32'), None, None],}
+               'traverse': [None, None, np.dtype('uint32'),
+                            None, None, np.dtype('uint32')],}
 
 
 def pytest_generate_tests(metafunc):
@@ -400,8 +401,9 @@ def test_traverse(cl_env, kernels, coord_dtype):
         0, np.dtype('uint32').itemsize
     )
     find_collisions = kernels['traverse'](
-        cq, (len(coords),), None,
-        collisions_buf, n_collisions_buf, n_collisions, nodes_buf, bounds_buf,
+        cq, (roundUp(len(coords), 32),), None,
+        collisions_buf, n_collisions_buf, n_collisions,
+        nodes_buf, bounds_buf, len(coords),
         wait_for=[clear_collisions, clear_n_collisions, calc_bounds],
     )
 

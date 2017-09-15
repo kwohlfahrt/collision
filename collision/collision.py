@@ -16,7 +16,7 @@ class CollisionProgram(SimpleProgram):
                    'generateBVH': [None, None, dtype('uint32')],
                    'leafBounds': [None, None, None, None, dtype('uint32')],
                    'internalBounds': [None, None, None, dtype('uint32')],
-                   'traverse': [None, None, dtype('uint32'), None, None]}
+                   'traverse': [None, None, dtype('uint32'), None, None, dtype('uint32')]}
 
     def __init__(self, ctx, coord_dtype=dtype('float32')):
         coord_dtype = dtype(coord_dtype)
@@ -187,9 +187,9 @@ class Collider:
             wait_for=[clear_flags, calc_bounds]
         )
         find_collisions = self.program.kernels['traverse'](
-            cq, (self.size,), None,
+            cq, (roundUp(self.size, self.group_size),), None,
             collisions_buf, n_collisions_buf, n_collisions,
-            self._nodes_buf, self._bounds_buf,
+            self._nodes_buf, self._bounds_buf, self.size,
             wait_for=[clear_n_collisions, calc_bounds],
         )
 

@@ -175,8 +175,10 @@ kernel void traverse(global unsigned int * const collisions,
                      global unsigned int * const next,
                      const unsigned int n_collisions,
                      const global struct Node * const nodes,
-                     const global struct Bound * const bounds) {
-    unsigned int n = get_global_size(0);
+                     const global struct Bound * const bounds,
+                     const unsigned int n) {
+    if (get_global_id(0) >= n)
+        return;
     size_t leaf_start = n - 1;
     const unsigned int query_idx = get_global_id(0);
     const struct Bound query = bounds[leaf_start + query_idx];
