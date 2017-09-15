@@ -10,7 +10,7 @@ from collision.misc import dtype_decl, roundUp
 
 np.random.seed(4)
 
-kernel_args = {'generateBVH': None,
+kernel_args = {'generateBVH': [None, None, np.dtype('uint32')],
                'fillInternal': [None, None, np.dtype('uint32')],
                'leafBounds': None,
                'internalBounds': None,
@@ -100,8 +100,8 @@ def test_generate_bvh(cl_env, kernels):
         nodes_buf, ids_buf, len(codes),
     )
     generate_bvh = kernels['generateBVH'](
-        cq, (len(codes) - 1,), None,
-        codes_buf, nodes_buf,
+        cq, (roundUp(len(codes) - 1, 32),), None,
+        codes_buf, nodes_buf, len(codes),
         wait_for=[fill_internal]
     )
     (nodes_map, _) = cl.enqueue_map_buffer(
@@ -153,8 +153,8 @@ def test_generate_odd_bvh(cl_env, kernels):
         nodes_buf, ids_buf, len(codes),
     )
     generate_bvh = kernels['generateBVH'](
-        cq, (len(codes) - 1,), None,
-        codes_buf, nodes_buf,
+        cq, (roundUp(len(codes) - 1, 32),), None,
+        codes_buf, nodes_buf, len(codes),
         wait_for=[fill_internal]
     )
     (nodes_map, _) = cl.enqueue_map_buffer(
@@ -373,8 +373,8 @@ def test_traverse(cl_env, kernels, coord_dtype):
         nodes_buf, ids_buf, len(coords),
     )
     generate_bvh = kernels['generateBVH'](
-        cq, (len(coords)-1,), None,
-        codes_buf, nodes_buf,
+        cq, (roundUp(len(coords)-1, 32),), None,
+        codes_buf, nodes_buf, len(coords),
         wait_for=[calc_codes, fill_internal]
     )
     clear_flags = cl.enqueue_fill_buffer(
@@ -466,8 +466,8 @@ def test_problem_codes(cl_env, kernels, coord_dtype):
     )
 
     generate_bvh = kernels['generateBVH'](
-        cq, (len(codes) - 1,), None,
-        codes_buf, nodes_buf,
+        cq, (roundUp(len(codes) - 1, 32),), None,
+        codes_buf, nodes_buf, len(codes),
         wait_for=[fill_internal]
     )
 

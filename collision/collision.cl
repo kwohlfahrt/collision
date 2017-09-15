@@ -76,8 +76,10 @@ char delta(const global unsigned int * const codes, const unsigned int n,
 // http://dx.doi.org/10.2312/EGGH/HPG12/033-037
 // No access at DOI link, but searchable
 kernel void generateBVH(const global unsigned int * const codes,
-                        global struct Node * const nodes) {
-    const unsigned int n = get_global_size(0) + 1;
+                        global struct Node * const nodes,
+                        const unsigned int n) {
+    if (get_global_id(0) >= (n - 1))
+        return;
     const unsigned int leaf_start = n - 1;
     const unsigned int i = get_global_id(0);
 

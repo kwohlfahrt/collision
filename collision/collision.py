@@ -13,7 +13,7 @@ class CollisionProgram(SimpleProgram):
     kernel_args = {'range': [None],
                    'calculateCodes': [None, None, None],
                    'fillInternal': [None, None, dtype('uint32')],
-                   'generateBVH': [None, None],
+                   'generateBVH': [None, None, dtype('uint32')],
                    'leafBounds': [None, None, None, None],
                    'internalBounds': [None, None, None],
                    'traverse': [None, None, dtype('uint32'), None, None]}
@@ -172,8 +172,8 @@ class Collider:
             wait_for=[sort_codes]
         )
         generate_bvh = self.program.kernels['generateBVH'](
-            cq, (self.size-1,), None,
-            self._codes_bufs[1], self._nodes_buf,
+            cq, (roundUp(self.size-1, self.group_size),), None,
+            self._codes_bufs[1], self._nodes_buf, self.size,
             wait_for=[sort_codes]
         )
         calc_bounds = self.program.kernels['leafBounds'](
