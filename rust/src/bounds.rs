@@ -4,7 +4,7 @@ pub struct Bounds {
     max: [f32; 3],
 }
 
-const NULL_BOUNDS: Bounds = Bounds {
+pub const NULL_BOUNDS: Bounds = Bounds {
     min: [std::f32::INFINITY, std::f32::INFINITY, std::f32::INFINITY],
     max: [
         std::f32::NEG_INFINITY,
@@ -22,13 +22,12 @@ impl Bounds {
     }
 
     pub fn normalize(&self, point: [f32; 3]) -> [f32; 3] {
-	let mut point = point;
-	for i in 0..point.len() {
-	    point[i] = (point[i] - self.min[i]) / (self.max[i] - self.min[i]);
-	}
-	point
+        let mut point = point;
+        for i in 0..point.len() {
+            point[i] = (point[i] - self.min[i]) / (self.max[i] - self.min[i]);
+        }
+        point
     }
-
 }
 
 // Could be more generic
@@ -105,12 +104,10 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_normalize() {
-	let bounds = Bounds {
-	    min: [0.0, -2.0, 0.0],
-	    max: [4.0, 0.0, 1.0]
-	};
-        assert_eq!(
-            bounds.normalize([2.0, -2.0, 1.0]), [0.5, 0.0, 1.0]
-        );
+        let bounds = Bounds {
+            min: [0.0, -2.0, 0.0],
+            max: [4.0, 0.0, 1.0],
+        };
+        assert_eq!(bounds.normalize([2.0, -2.0, 1.0]), [0.5, 0.0, 1.0]);
     }
 }

@@ -15,31 +15,39 @@ enum Data {
 struct Node {
     parent: usize,
     right_edge: usize,
-    children: (usize, usize),
+    bounds: Bounds,
+    data: Data,
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct BoundingVolumeHierarchy {
     nodes: Vec<Node>,
-    points: Vec<[f32; 3]>,
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl BoundingVolumeHierarchy {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-            points: Vec::new(),
-        }
+        Self { nodes: Vec::new() }
     }
 
-    pub fn build(&mut self, points: &[[f32; 3]]) {
-        let bounds: Bounds = unimplemented!(); //Bounds::from(points.iter());
-        let morton_codes = points
+    pub fn build(&mut self, points: &[([f32; 3], f32)]) {
+        let bounds = points.iter().collect::<Bounds>();
+        let mut data = points
             .iter()
-            .map(|point| morton::code(bounds.normalize(*point)))
+            .enumerate()
+            .map(|(i, point)| ((i, point), morton::code(bounds.normalize(point.0))))
             .collect::<Vec<_>>();
+        data.sort_unstable_by_key(|v| v.1);
+        self.nodes.reserve(2 * data.len() - 1);
+
+        let (points, codes): (Vec<_>, Vec<_>) = data.into_iter().unzip();
+
+        let generateHierarchy = |parent: usize, first: usize, last: usize| {
+            //let split = morton::findSplit(codes);
+        };
+
+        generateHierarchy(0, 0, codes.len());
     }
 }
 
