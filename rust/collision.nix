@@ -1,4 +1,4 @@
-{ stdenv, makeRustPlatform, rustChannels, wasm-pack, wasm-bindgen-cli, nodejs_latest }:
+{ stdenv, makeRustPlatform, rustChannels, perf, wasm-pack, wasm-bindgen-cli, nodejs_latest }:
 
 let
   rustPlatform = with rustChannels.stable; makeRustPlatform {

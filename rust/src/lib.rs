@@ -16,14 +16,14 @@ struct Node<T> {
     data: T,
 }
 
-struct BoundingVolumeHierarchy {
+pub struct BoundingVolumeHierarchy {
     n_internal_nodes: usize,
     nodes: Vec<Node<(usize, usize)>>,
     leaves: Vec<Node<usize>>,
 }
 
 impl BoundingVolumeHierarchy {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             n_internal_nodes: 0,
             nodes: Vec::new(),
@@ -100,7 +100,7 @@ impl BoundingVolumeHierarchy {
         }
     }
 
-    fn build(&mut self, points: &[([f32; 3], f32)]) {
+    pub fn build(&mut self, points: &[([f32; 3], f32)]) {
         let scene_bounds = points.iter().map(Bounds::from).collect::<Bounds>();
         let mut data = points
             .iter()
@@ -145,7 +145,7 @@ impl BoundingVolumeHierarchy {
         };
     }
 
-    fn collide(&self) -> Vec<(usize, usize)> {
+    pub fn collide(&self) -> Vec<(usize, usize)> {
         let mut collisions = Vec::new();
         for (idx, leaf) in self.leaves.iter().enumerate() {
             self.collide_sub_hierarchy(0, idx, &mut collisions, &(leaf.data, leaf.bounds));
