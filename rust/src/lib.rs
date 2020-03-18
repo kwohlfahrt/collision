@@ -157,7 +157,19 @@ impl BoundingVolumeHierarchy {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn collide(points: &[f32]) -> Vec<usize> {
-    vec![0]
+    let mut bvh = BoundingVolumeHierarchy::new();
+    let points = points
+        .chunks_exact(4)
+        .map(|chunk| ([chunk[0], chunk[1], chunk[2]], chunk[3]))
+        .collect::<Vec<_>>();
+
+    bvh.build(&points);
+    let result = bvh.collide();
+    let mut flat_result = Vec::with_capacity(result.len());
+    for idxs in result {
+        flat_result.extend(&[idxs.0, idxs.1]);
+    }
+    flat_result
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -213,6 +225,10 @@ mod tests {
         collisions
     }
 
+    fn sort_pair(pair: &(usize, usize)) -> (usize, usize) {
+        (usize::min(pair.0, pair.1), usize::max(pair.0, pair.1))
+    }
+
     #[test]
     fn test_naive_collisions() {
         let points = [
@@ -229,19 +245,24 @@ mod tests {
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    #[ignore]
     fn test_random_collisions() {
-        let points = (0..1000)
+	use rand::{Rng, SeedableRng};
+
+	let mut rng = rand::rngs::StdRng::seed_from_u64(4);
+        let points = (0..100)
             .map(|_| {
-                let (centre, radius) = rand::random::<([f32; 3], f32)>();
-                (centre, radius * 0.05)
+                let (centre, radius) = rng.gen::<([f32; 3], f32)>();
+                (centre, radius * 0.1)
             })
             .collect::<Vec<_>>();
 
         let mut reference = naive_collisions(&points);
         reference.sort();
 
-        let mut result = collide(&points);
+        let mut result = collide(&points)
+            .iter()
+            .map(sort_pair)
+            .collect::<Vec<_>>();
         result.sort();
 
         assert!(result.len() > 0);
@@ -251,14 +272,13 @@ mod tests {
 
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
-    #[ignore]
     fn test_random_collisions() {
         fn random() -> f32 {
             js_sys::Math::random() as f32
         }
 
-        let points = (0..1000)
-            .map(|_| ([random(), random(), random()], random() * 0.05))
+        let points = (0..100)
+            .map(|_| ([random(), random(), random()], random() * 0.1))
             .collect::<Vec<_>>();
 
         let mut flat_points = Vec::new();
@@ -270,16 +290,16 @@ mod tests {
         let mut reference = naive_collisions(&points);
         reference.sort();
 
-        let mut flat_reference = Vec::new();
-        for idxs in reference {
-            flat_reference.extend(&[idxs.0, idxs.1]);
-        }
-
-        let mut result = collide(&flat_points);
+        let flat_result = collide(&flat_points);
+        let mut result = flat_result
+            .chunks_exact(2)
+            .map(|chunk| (chunk[0], chunk[1]))
+	    .map(|pair| sort_pair(&pair))
+            .collect::<Vec<_>>();
         result.sort();
 
         assert!(result.len() > 0);
         assert!(result.len() < points.len() * points.len());
-        assert_eq!(result, flat_reference);
+        assert_eq!(result, reference);
     }
 }
