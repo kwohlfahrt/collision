@@ -11,7 +11,7 @@ use bounds::Bounds;
 
 struct Node<T> {
     parent: usize,
-    // right_edge: usize,
+    right_edge: usize,
     bounds: Bounds,
     data: T,
 }
@@ -44,6 +44,7 @@ impl BoundingVolumeHierarchy {
             let idx = self.leaves.len();
             self.leaves.push(Node {
                 parent,
+                right_edge: idx,
                 bounds: points[0].1,
                 data: points[0].0,
             });
@@ -56,6 +57,7 @@ impl BoundingVolumeHierarchy {
             let idx = self.nodes.len();
             self.nodes.push(Node {
                 parent,
+                right_edge: 0,
                 bounds: bounds::NULL_BOUNDS,
                 data: (0, 0),
             });
@@ -67,9 +69,15 @@ impl BoundingVolumeHierarchy {
             self.nodes[idx].data = children;
 
             let child_bounds = (*self.get_bounds(children.0), *self.get_bounds(children.1));
+            let child_right_edges = (
+                self.get_right_edge(children.0),
+                self.get_right_edge(children.1),
+            );
 
             self.nodes[idx].bounds.update(&child_bounds.0);
             self.nodes[idx].bounds.update(&child_bounds.1);
+            // FIXME: is .0 ever greater than .1?
+            self.nodes[idx].right_edge = child_right_edges.0.max(child_right_edges.1);
 
             idx
         }
@@ -84,6 +92,14 @@ impl BoundingVolumeHierarchy {
             &self.leaves[idx - self.n_internal_nodes].bounds
         } else {
             &self.nodes[idx].bounds
+        }
+    }
+
+    fn get_right_edge(&self, idx: usize) -> usize {
+        if self.is_leaf(idx) {
+            self.leaves[idx - self.n_internal_nodes].right_edge
+        } else {
+            self.nodes[idx].right_edge
         }
     }
 
@@ -109,30 +125,35 @@ impl BoundingVolumeHierarchy {
         self.generate_sub_hierarchy(0, &codes, &points);
     }
 
-    fn collide_sub_hierarchy(&self, idx: usize, acc: &mut Vec<usize>, other: &Bounds) {
-        if self.get_bounds(idx).intersects(other) {
-	    if self.is_leaf(idx) {
-		let id = self.leaves[idx - self.n_internal_nodes].data;
-		acc.push(id);
-	    } else {
-		let children = self.nodes[idx].data;
-		self.collide_sub_hierarchy(children.0, acc, other);
-		self.collide_sub_hierarchy(children.1, acc, other);
-	    };
+    fn collide_sub_hierarchy(
+        &self,
+        idx: usize,
+        query_idx: usize,
+        acc: &mut Vec<(usize, usize)>,
+        other: &(usize, Bounds),
+    ) {
+        if self.get_bounds(idx).intersects(&other.1) {
+            if self.is_leaf(idx) {
+                let id = self.leaves[idx - self.n_internal_nodes].data;
+                acc.push((other.0, id));
+            } else {
+                let children = self.nodes[idx].data;
+                if self.get_right_edge(children.0) > query_idx {
+                    self.collide_sub_hierarchy(children.0, query_idx, acc, other);
+                }
+                if self.get_right_edge(children.1) > query_idx {
+                    self.collide_sub_hierarchy(children.1, query_idx, acc, other);
+                }
+            };
         };
     }
 
-    pub fn collide(&self, other: &Bounds) -> Vec<usize> {
-	let mut collisions = Vec::new();
-        self.collide_sub_hierarchy(0, &mut collisions, other);
-	collisions
-    }
-
-    pub fn collide_self(&self) -> Vec<(usize, usize)> {
-        self.leaves
-            .iter()
-            .flat_map(|leaf| repeat(leaf.data).zip(self.collide(&leaf.bounds)))
-            .collect()
+    pub fn collide(&self) -> Vec<(usize, usize)> {
+        let mut collisions = Vec::new();
+        for (idx, leaf) in self.leaves.iter().enumerate() {
+            self.collide_sub_hierarchy(0, idx, &mut collisions, &(leaf.data, leaf.bounds));
+        }
+        collisions
     }
 }
 
@@ -160,8 +181,8 @@ mod tests {
         bvh.build(&points);
 
         let expected = [(0, 1), (4, 5)];
-	//let mut result = bvh.collide_self();
-	//result.sort();
-        assert_eq!(bvh.collide_self(), expected)
+        let mut result = bvh.collide();
+        result.sort();
+        assert_eq!(result, expected)
     }
 }
