@@ -1,4 +1,4 @@
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Bounds {
     min: [f32; 3],
     max: [f32; 3],
@@ -28,18 +28,26 @@ impl Bounds {
         }
         point
     }
+
+    pub fn centre(&self) -> [f32; 3] {
+        let mut centre = [0.0, 0.0, 0.0];
+        for i in 0..centre.len() {
+            centre[i] = self.min[i] + (self.max[i] - self.min[i]) / 2.0;
+        }
+        centre
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        (0..3).all(|i| self.max[i] > other.min[i] && self.min[i] < other.max[i])
+    }
 }
 
-// Could be more generic
-impl<'a> std::iter::FromIterator<&'a ([f32; 3], f32)> for Bounds {
-    fn from_iter<I: IntoIterator<Item = &'a ([f32; 3], f32)>>(points: I) -> Self {
-        points
-            .into_iter()
-            .map(Self::from)
-            .fold(NULL_BOUNDS, |mut acc, v| {
-                acc.update(&v);
-                acc
-            })
+impl<'a> std::iter::FromIterator<Bounds> for Bounds {
+    fn from_iter<I: IntoIterator<Item = Bounds>>(points: I) -> Self {
+        points.into_iter().fold(NULL_BOUNDS, |mut acc, v| {
+            acc.update(&v);
+            acc
+        })
     }
 }
 
@@ -89,10 +97,11 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_bounds() {
-        assert_eq!([].iter().collect::<Bounds>(), NULL_BOUNDS);
+        assert_eq!([].iter().copied().collect::<Bounds>(), NULL_BOUNDS);
         assert_eq!(
             [([0.0, 0.0, 0.0], 0.0), ([0.0, -2.0, 1.0], 1.0)]
                 .iter()
+                .map(Bounds::from)
                 .collect::<Bounds>(),
             Bounds {
                 min: [-1.0, -3.0, 0.0],
@@ -109,5 +118,26 @@ mod tests {
             max: [4.0, 0.0, 1.0],
         };
         assert_eq!(bounds.normalize([2.0, -2.0, 1.0]), [0.5, 0.0, 1.0]);
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    #[test]
+    fn test_intersects() {
+        let bounds = Bounds {
+            min: [0.0, -2.0, 0.0],
+            max: [4.0, 0.0, 1.0],
+        };
+        assert!(bounds.intersects(&Bounds {
+            min: [0.0, -2.0, 0.0],
+            max: [4.0, 0.0, 1.0],
+        }));
+        assert!(bounds.intersects(&Bounds {
+            min: [1.0, -1.0, 0.5],
+            max: [10.0, 10.0, 10.0],
+        }));
+        assert!(!bounds.intersects(&Bounds {
+            min: [5.0, -2.0, 0.0],
+            max: [10.0, 0.0, 1.0],
+        }));
     }
 }
