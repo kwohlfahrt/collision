@@ -9,7 +9,11 @@ fn collide(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("collide");
     for size in &[10, 100, 1_000, 10_000] {
-        let scale = 0.333 * (-0.01 * *size as f32).exp();
+        let log_size = (*size as f32).log10();
+        // Ensure approximately `size` collisions
+        // TODO: Find the correct relation
+        let scale = 1.0 / 4.0 / (2.1_f32).powf(log_size - 1.0);
+
         let points = (0..*size)
             .map(|_| {
                 let (centre, radius) = rng.gen::<([f32; 3], f32)>();
