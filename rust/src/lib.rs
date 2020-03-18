@@ -160,6 +160,7 @@ impl BoundingVolumeHierarchy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    extern crate rand;
 
     #[cfg(target_arch = "wasm32")]
     extern crate wasm_bindgen_test;
@@ -184,5 +185,54 @@ mod tests {
         let mut result = bvh.collide();
         result.sort();
         assert_eq!(result, expected)
+    }
+
+    fn naive_collisions(points: &[([f32; 3], f32)]) -> Vec<(usize, usize)>{
+	let mut collisions = Vec::new();
+	for (i, pt1) in points.iter().enumerate() {
+	    let bounds1 = Bounds::from(pt1);
+	    for (j, pt2) in points[(i+1)..].iter().enumerate() {
+		let j = j + i + 1;
+		let bounds2 = Bounds::from(pt2);
+		if bounds1.intersects(&bounds2) {
+		    collisions.push((i, j));
+		}
+	    }
+	}
+	collisions
+    }
+
+    #[test]
+    fn test_naive_collisions() {
+        let points = [
+            ([0.0, 1.0, 3.0], 1.0),
+            ([0.0, 1.0, 3.0], 1.0),
+            ([4.0, 1.0, 8.0], 1.0),
+            ([-4.0, -6.0, 3.0], 1.0),
+            ([-5.0, 0.0, -1.0], 1.0),
+            ([-5.0, 0.5, -0.5], 1.0),
+        ];
+        let expected = [(0, 1), (4, 5)];
+	assert_eq!(naive_collisions(&points), expected);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_random_collisions() {
+	let points = (0..1000).map(|i| {
+	    let (centre, radius) = rand::random::<([f32; 3], f32)>();
+	    (centre, radius * 0.05)
+	}).collect::<Vec<_>>();
+
+	let mut reference = naive_collisions(&points);
+	reference.sort();
+
+	let mut bvh = BoundingVolumeHierarchy::new();
+	bvh.build(&points);
+	let mut result = bvh.collide();
+	result.sort();
+	assert!(result.len() > 0);
+	assert!(result.len() < points.len() * points.len());
+	assert_eq!(result, reference)
     }
 }
