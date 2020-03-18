@@ -3,27 +3,38 @@ extern crate wasm_bindgen;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
-mod morton;
-use morton::morton_number;
+use std::mem;
 
 mod bounds;
+mod morton;
+
+enum Data {
+    Leaf { id: usize },
+    Node { children: (usize, usize) },
+}
+
+struct Node {
+    parent: usize,
+    right_edge: usize,
+}
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct BoundingVolumeHierarchy {
-    morton_codes: Vec<u32>,
+    nodes: Vec<Node>,
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl BoundingVolumeHierarchy {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new() -> Self {
-        Self {
-            morton_codes: Vec::new(),
-        }
+        Self { nodes: Vec::new() }
     }
 
     pub fn build(&mut self, points: &[[f32; 3]]) {
         let bounds = bounds::bounds(points);
+        let morton_codes = points
+            .iter()
+            .map(|point| morton::code(bounds::normalize(&bounds, *point)));
     }
 }
 

@@ -7,7 +7,6 @@ const INITIAL_BOUNDS: ([f32; 3], [f32; 3]) = (
     ],
 );
 
-// Mutate in-place due to lack of traits on fixed-size arrays
 pub fn update_bounds(bounds: &mut ([f32; 3], [f32; 3]), point: &[f32; 3]) {
     let (min, max) = bounds;
     for i in 0..point.len() {
@@ -21,6 +20,15 @@ pub fn bounds(points: &[[f32; 3]]) -> ([f32; 3], [f32; 3]) {
         update_bounds(&mut acc, v);
         acc
     });
+}
+
+pub fn normalize(bounds: &([f32; 3], [f32; 3]), point: [f32; 3]) -> [f32; 3] {
+    let (min, max) = bounds;
+    let mut point = point;
+    for i in 0..point.len() {
+        point[i] = (point[i] - min[i]) / (max[i] - min[i]);
+    }
+    point
 }
 
 #[cfg(test)]
@@ -50,6 +58,15 @@ mod tests {
         assert_eq!(
             bounds(&[[0.0, 0.0, 0.0], [0.0, -2.0, 1.0]]),
             ([0.0, -2.0, 0.0], [0.0, 0.0, 1.0])
+        );
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+    #[test]
+    fn test_normalize() {
+        assert_eq!(
+            normalize(&([0.0, -2.0, 0.0], [4.0, 0.0, 1.0]), [2.0, -2.0, 1.0]),
+            [0.5, 0.0, 1.0]
         );
     }
 }
