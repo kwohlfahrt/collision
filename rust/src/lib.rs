@@ -246,9 +246,9 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn test_random_collisions() {
-	use rand::{Rng, SeedableRng};
+        use rand::{Rng, SeedableRng};
 
-	let mut rng = rand::rngs::StdRng::seed_from_u64(4);
+        let mut rng = rand::rngs::StdRng::seed_from_u64(4);
         let points = (0..100)
             .map(|_| {
                 let (centre, radius) = rng.gen::<([f32; 3], f32)>();
@@ -259,10 +259,7 @@ mod tests {
         let mut reference = naive_collisions(&points);
         reference.sort();
 
-        let mut result = collide(&points)
-            .iter()
-            .map(sort_pair)
-            .collect::<Vec<_>>();
+        let mut result = collide(&points).iter().map(sort_pair).collect::<Vec<_>>();
         result.sort();
 
         assert!(result.len() > 0);
@@ -294,7 +291,7 @@ mod tests {
         let mut result = flat_result
             .chunks_exact(2)
             .map(|chunk| (chunk[0], chunk[1]))
-	    .map(|pair| sort_pair(&pair))
+            .map(|pair| sort_pair(&pair))
             .collect::<Vec<_>>();
         result.sort();
 

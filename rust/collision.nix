@@ -13,7 +13,7 @@ in rustPlatform.buildRustPackage rec {
   nativeBuildInputs = [ wasm-pack wasm-bindgen-cli ];
   checkInputs = [ nodejs_latest ];
 
-  cargoSha256 = "1zdfflk3vplvb2crj6h1lm4qq5fva9m7mx997z5mwm5w44a25h84";
+  cargoSha256 = "0h184jcmmadf50mlhk6wivipf2nnjz2mmf81r870cikaai8xvvwz";
 
   meta = with stdenv.lib; {
     platforms = platforms.all;
