@@ -18,7 +18,7 @@ struct Node<T> {
 
 pub struct BoundingVolumeHierarchy {
     n_internal_nodes: usize,
-    nodes: Vec<Node<(usize, usize)>>,
+    nodes: Vec<Node<[usize; 2]>>,
     leaves: Vec<Node<usize>>,
 }
 
@@ -56,25 +56,25 @@ impl BoundingVolumeHierarchy {
                 parent,
                 right_edge: 0,
                 bounds: bounds::NULL_BOUNDS,
-                data: (0, 0),
+                data: [0, 0],
             });
 
-            let children = (
+            let children = [
                 self.generate_sub_hierarchy(idx, child_codes.0, child_points.0),
                 self.generate_sub_hierarchy(idx, child_codes.1, child_points.1),
-            );
+            ];
             self.nodes[idx].data = children;
 
-            let child_bounds = (*self.get_bounds(children.0), *self.get_bounds(children.1));
-            let child_right_edges = (
-                self.get_right_edge(children.0),
-                self.get_right_edge(children.1),
-            );
+            let child_bounds = [*self.get_bounds(children[0]), *self.get_bounds(children[1])];
+            let child_right_edges = [
+                self.get_right_edge(children[0]),
+                self.get_right_edge(children[1]),
+            ];
 
-            self.nodes[idx].bounds.update(&child_bounds.0);
-            self.nodes[idx].bounds.update(&child_bounds.1);
+            self.nodes[idx].bounds.update(&child_bounds[0]);
+            self.nodes[idx].bounds.update(&child_bounds[1]);
             // FIXME: is .0 ever greater than .1?
-            self.nodes[idx].right_edge = child_right_edges.0.max(child_right_edges.1);
+            self.nodes[idx].right_edge = child_right_edges[0].max(child_right_edges[1]);
 
             idx
         }
@@ -124,22 +124,22 @@ impl BoundingVolumeHierarchy {
 
     fn collide_sub_hierarchy(
         &self,
-        idx: usize,
         query_idx: usize,
         acc: &mut Vec<(usize, usize)>,
-        other: &(usize, Bounds),
+        query: &(usize, Bounds),
+        idx: usize,
     ) {
-        if self.get_bounds(idx).intersects(&other.1) {
+        let (query_id, query_bounds) = query;
+
+        if self.get_bounds(idx).intersects(query_bounds) {
             if self.is_leaf(idx) {
                 let id = self.leaves[idx - self.n_internal_nodes].data;
-                acc.push((other.0, id));
+                acc.push((*query_id, id));
             } else {
-                let children = self.nodes[idx].data;
-                if self.get_right_edge(children.0) > query_idx {
-                    self.collide_sub_hierarchy(children.0, query_idx, acc, other);
-                }
-                if self.get_right_edge(children.1) > query_idx {
-                    self.collide_sub_hierarchy(children.1, query_idx, acc, other);
+                for &child in &self.nodes[idx].data {
+                    if self.get_right_edge(child) > query_idx {
+                        self.collide_sub_hierarchy(query_idx, acc, query, child);
+                    }
                 }
             };
         };
@@ -148,7 +148,7 @@ impl BoundingVolumeHierarchy {
     pub fn collide(&self) -> Vec<(usize, usize)> {
         let mut collisions = Vec::new();
         for (idx, leaf) in self.leaves.iter().enumerate() {
-            self.collide_sub_hierarchy(0, idx, &mut collisions, &(leaf.data, leaf.bounds));
+            self.collide_sub_hierarchy(idx, &mut collisions, &(leaf.data, leaf.bounds), 0);
         }
         collisions
     }
@@ -192,7 +192,7 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[test]
-    fn test_build() {
+    fn test_manual() {
         let mut bvh = BoundingVolumeHierarchy::new();
         let points = [
             ([0.0, 1.0, 3.0], 1.0),
