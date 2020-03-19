@@ -52,10 +52,12 @@ fn build(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::from_parameter(points.len() as u64),
             &points,
-            |b, points| b.iter(|| {
-		let mut bvh = collision::BoundingVolumeHierarchy::new();
-		bvh.build(&points);
-	    }),
+            |b, points| {
+                b.iter(|| {
+                    let mut bvh = collision::BoundingVolumeHierarchy::new();
+                    bvh.build(&points);
+                })
+            },
         );
     }
 }
@@ -77,10 +79,10 @@ fn collide_bvh(c: &mut Criterion) {
                 (centre, radius * scale)
             })
             .collect::<Vec<_>>();
-	let mut bvh = collision::BoundingVolumeHierarchy::new();
-	bvh.build(&points);
+        let mut bvh = collision::BoundingVolumeHierarchy::new();
+        bvh.build(&points);
 
-	group.throughput(Throughput::Elements(points.len() as u64));
+        group.throughput(Throughput::Elements(points.len() as u64));
         group.bench_with_input(
             BenchmarkId::from_parameter(points.len() as u64),
             &bvh,
