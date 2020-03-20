@@ -41,9 +41,9 @@ pub fn find_split(codes: &[u32]) -> usize {
 
     let target_prefix_len = common_prefix_len(codes[0], codes[codes.len() - 1]) + 1;
     let prefix = if let Some(mask) = u32::max_value().checked_shr(target_prefix_len) {
-	codes[0] & !mask
+        codes[0] & !mask
     } else {
-	codes[0]
+        codes[0]
     };
 
     codes
@@ -125,8 +125,8 @@ mod tests {
             ],
             // Random trailing bits
             &[0b10000111, 0b10011011, 0b10010111, 0b10111100, 0b10111110],
-	    // Can overflow shift-right
-	    &[0b00010, 0b00011, 0b00011],
+            // Can overflow shift-right
+            &[0b00010, 0b00011, 0b00011],
         ];
         let splits = [2, 2, 9, 3, 1];
 
