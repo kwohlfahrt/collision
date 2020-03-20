@@ -60,12 +60,6 @@ pub fn find_split(codes: &[u32]) -> usize {
 mod tests {
     use super::*;
 
-    #[cfg(target_arch = "wasm32")]
-    extern crate wasm_bindgen_test;
-    #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_expand_bits() {
         assert_eq!(
@@ -78,7 +72,6 @@ mod tests {
         );
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_interleave() {
         let values = [
@@ -97,7 +90,6 @@ mod tests {
         }
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_code() {
         assert!(code([0.0, 0.0, 0.0]) < code([1.0, 1.0, 1.0]));
@@ -106,7 +98,6 @@ mod tests {
         assert!(code([0.5, 0.5, 0.5]) < code([0.6, 0.0, 0.0]));
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_common_prefix_len() {
         assert_eq!(common_prefix_len(0b00000000, 0b00000000), 32);
@@ -116,7 +107,6 @@ mod tests {
         assert_eq!(common_prefix_len(0b10111111, 0b10011111), 26);
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_find_split() {
         let codess: &[&[u32]] = &[
@@ -135,9 +125,9 @@ mod tests {
         ];
         let splits = [2, 2, 9, 3];
 
-        for (i, codes) in codess.iter().enumerate() {
+        for (codes, &expected_split) in codess.iter().zip(&splits) {
             let split = find_split(codes);
-            assert_eq!(split, splits[i]);
+            assert_eq!(split, expected_split);
 
             if codes.first().unwrap() != codes.last().unwrap() {
                 let (first, second) = codes.split_at(split);

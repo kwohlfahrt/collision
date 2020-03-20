@@ -67,12 +67,6 @@ impl From<&([f32; 3], f32)> for Bounds {
 mod tests {
     use super::*;
 
-    #[cfg(target_arch = "wasm32")]
-    extern crate wasm_bindgen_test;
-    #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_update_bounds() {
         let mut acc = NULL_BOUNDS;
@@ -94,7 +88,6 @@ mod tests {
         );
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_bounds() {
         assert_eq!([].iter().copied().collect::<Bounds>(), NULL_BOUNDS);
@@ -110,7 +103,6 @@ mod tests {
         );
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_normalize() {
         let bounds = Bounds {
@@ -120,7 +112,6 @@ mod tests {
         assert_eq!(bounds.normalize([2.0, -2.0, 1.0]), [0.5, 0.0, 1.0]);
     }
 
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     fn test_intersects() {
         let bounds = Bounds {

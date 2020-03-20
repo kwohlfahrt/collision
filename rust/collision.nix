@@ -1,4 +1,4 @@
-{ stdenv, makeRustPlatform, rustChannels, perf, wasm-pack, wasm-bindgen-cli, nodejs_latest }:
+{ stdenv, makeRustPlatform, rustChannels, wasm-pack, wasm-bindgen-cli, nodejs_latest }:
 
 let
   rustPlatform = with rustChannels.stable; makeRustPlatform {
@@ -13,7 +13,7 @@ in rustPlatform.buildRustPackage rec {
   nativeBuildInputs = [ wasm-pack wasm-bindgen-cli ];
   checkInputs = [ nodejs_latest ];
 
-  cargoSha256 = "0q8wkv27fa8ly9q7vmyyp3qhr5ddq65qfyyxv2i5fcvf0nc6dpzd";
+  cargoSha256 = "1ml17s0hpl13vv1ad5amxs56r3wynj2ql7q0sxkzkawlm6a4z9ma";
 
   meta = with stdenv.lib; {
     platforms = platforms.all;
