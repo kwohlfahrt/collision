@@ -23,16 +23,16 @@ impl Bounds {
 
     pub fn normalize(&self, point: [f32; 3]) -> [f32; 3] {
         let mut point = point;
-        for i in 0..point.len() {
-            point[i] = (point[i] - self.min[i]) / (self.max[i] - self.min[i]);
+        for (i, coord) in point.iter_mut().enumerate() {
+            *coord = (*coord - self.min[i]) / (self.max[i] - self.min[i]);
         }
         point
     }
 
     pub fn centre(&self) -> [f32; 3] {
         let mut centre = [0.0, 0.0, 0.0];
-        for i in 0..centre.len() {
-            centre[i] = self.min[i] + (self.max[i] - self.min[i]) / 2.0;
+        for (i, coord) in centre.iter_mut().enumerate() {
+            *coord = self.min[i] + (self.max[i] - self.min[i]) / 2.0;
         }
         centre
     }
@@ -55,9 +55,9 @@ impl From<&([f32; 3], f32)> for Bounds {
     fn from(point: &([f32; 3], f32)) -> Self {
         let (centre, radius) = point;
         let mut bounds = NULL_BOUNDS;
-        for i in 0..3 {
-            bounds.min[i] = centre[i] - radius;
-            bounds.max[i] = centre[i] + radius;
+        for (i, coord) in centre.iter().enumerate() {
+            bounds.min[i] = coord - radius;
+            bounds.max[i] = coord + radius;
         }
         bounds
     }

@@ -154,6 +154,12 @@ impl BoundingVolumeHierarchy {
     }
 }
 
+impl Default for BoundingVolumeHierarchy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn collide(points: &[f32]) -> Vec<usize> {
