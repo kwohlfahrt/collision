@@ -182,6 +182,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "collision"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "js-sys",
+ "rand 0.7.3",
+ "smallvec",
+ "wasm-bindgen",
+ "wasm-bindgen-cli",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1044,19 +1057,6 @@ dependencies = [
  "time",
  "tiny_http",
  "url",
-]
-
-[[package]]
-name = "rust"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "js-sys",
- "rand 0.7.3",
- "smallvec",
- "wasm-bindgen",
- "wasm-bindgen-cli",
- "wasm-bindgen-test",
 ]
 
 [[package]]

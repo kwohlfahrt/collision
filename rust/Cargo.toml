@@ -1,8 +1,11 @@
 [package]
-name = "rust"
+name = "collision"
 version = "0.1.0"
 authors = ["Kai Wohlfahrt <kai.wohlfahrt@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/kwohlfahrt/collision.git"
+license = "GPL-3.0"
+description = "Fast and simple approximate collision detection"
 
 [lib]
 name = "collision"
