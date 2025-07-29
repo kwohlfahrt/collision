@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from inspect import signature
 from itertools import product as cartesian
-from .common import cl_env
+
 from collision.misc import dtype_decl
 
 np.random.seed(4)

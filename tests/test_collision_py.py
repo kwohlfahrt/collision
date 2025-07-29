@@ -3,7 +3,6 @@ import pyopencl as cl
 import pytest
 from inspect import signature
 from collision.collision import *
-from .common import cl_env
 
 def pytest_generate_tests(metafunc):
     params = signature(metafunc.function).parameters

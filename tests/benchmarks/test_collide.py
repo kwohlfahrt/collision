@@ -2,7 +2,7 @@ import numpy as np
 import pyopencl as cl
 import pytest
 from collision.collision import CollisionProgram, Collider
-from ..common import cl_env
+
 
 @pytest.fixture(scope='module')
 def collision_programs(cl_env):

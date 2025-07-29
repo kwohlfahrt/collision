@@ -3,8 +3,6 @@ import pyopencl as cl
 import pytest
 from collision.offset import *
 
-from .common import cl_env
-
 np.random.seed(4)
 
 def pytest_generate_tests(metafunc):

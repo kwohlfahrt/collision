@@ -2,7 +2,7 @@ import numpy as np
 import pyopencl as cl
 import pytest
 from collision.offset import OffsetProgram, OffsetFinder
-from ..common import cl_env
+
 
 @pytest.fixture(scope='module')
 def scan_program(cl_env):

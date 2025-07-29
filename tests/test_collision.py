@@ -5,7 +5,6 @@ import pytest
 from inspect import signature
 from itertools import product as cartesian
 from collision.collision import Node
-from .common import cl_env
 from collision.misc import dtype_decl, roundUp
 
 np.random.seed(4)

@@ -4,7 +4,7 @@ import pytest
 from inspect import signature
 from functools import partial
 from collision.radix import RadixProgram, RadixSorter
-from ..common import cl_env
+
 from .test_scan import scan_program
 
 def pytest_generate_tests(metafunc):

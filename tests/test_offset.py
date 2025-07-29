@@ -3,7 +3,6 @@ import pyopencl as cl
 import pytest
 from pathlib import Path
 
-from .common import cl_env
 from collision.misc import dtype_decl
 
 def pytest_generate_tests(metafunc):

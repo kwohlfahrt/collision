@@ -1,8 +1,8 @@
 import numpy as np
 import pyopencl as cl
 import pytest
+
 from collision.radix import *
-from .common import cl_env
 
 np.random.seed(4)
 

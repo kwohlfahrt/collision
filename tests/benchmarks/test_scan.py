@@ -3,7 +3,7 @@ import pyopencl as cl
 import pytest
 from functools import partial
 from collision.radix import PrefixScanProgram, PrefixScanner
-from ..common import cl_env
+
 
 @pytest.fixture(scope='module')
 def scan_program(cl_env):
