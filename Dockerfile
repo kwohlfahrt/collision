@@ -32,7 +32,7 @@ EOF
 COPY setup.py MANIFEST.in ./
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -e .
+    pip install -e .[test]
 
 COPY collision ./collision
 COPY tests ./tests
