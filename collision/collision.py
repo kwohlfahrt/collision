@@ -1,4 +1,4 @@
-from numpy import dtype, zeros, array
+from numpy import dtype, zeros, array, iinfo
 from pathlib import Path
 from itertools import accumulate, chain, tee
 import pyopencl as cl
@@ -7,6 +7,8 @@ from .radix import RadixSorter
 from .bounds import Bounds
 
 Node = dtype([('parent', 'uint32'), ('right_edge', 'uint32'), ('data', 'uint32', 2)])
+
+NO_NODE = iinfo(Node.fields['parent'][0]).max
 
 class CollisionProgram(SimpleProgram):
     src = Path(__file__).parent / "collision.cl"
@@ -135,7 +137,7 @@ class Collider:
         fill_codes = []
         if self.padded_size != self.size:
             fill_codes.append(cl.enqueue_fill_buffer(
-                cq, self._codes_bufs[0], array([-1], dtype=self.code_dtype),
+                cq, self._codes_bufs[0], array(iinfo(self.code_dtype).max, dtype=self.code_dtype),
                 0, self.padded_size * self.code_dtype.itemsize
             ))
         fill_ids = self.program.kernels['range'](

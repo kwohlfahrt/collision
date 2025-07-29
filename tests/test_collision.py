@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from inspect import signature
 from itertools import product as cartesian
-from collision.collision import Node
+from collision.collision import Node, NO_NODE
 from collision.misc import dtype_decl, roundUp
 
 np.random.seed(4)
@@ -16,7 +16,6 @@ kernel_args = {'generateBVH': [None, None, np.dtype('uint32')],
                'calculateCodes': [None, None, None, np.dtype('uint32')],
                'traverse': [None, None, np.dtype('uint32'),
                             None, None, np.dtype('uint32')],}
-
 
 def pytest_generate_tests(metafunc):
     params = signature(metafunc.function).parameters
@@ -112,7 +111,7 @@ def test_generate_bvh(cl_env, kernels):
     nodes_map.dtype = Node
 
     leaf = len(codes) - 1
-    expected = np.array([(-1, 7, [3, 4]),
+    expected = np.array([(NO_NODE, 7, [3, 4]),
                          (3, 1, [leaf+0, leaf+1]),
                          (3, 3, [leaf+2, leaf+3]),
                          (0, 3, [1, 2]),
@@ -165,7 +164,7 @@ def test_generate_odd_bvh(cl_env, kernels):
     nodes_map.dtype = Node
 
     leaf = len(codes) - 1
-    expected = np.array([(-1, 6, [3, 4]),
+    expected = np.array([(NO_NODE, 6, [3, 4]),
                          (3, 1, [leaf+0, leaf+1]),
                          (3, 3, [leaf+2, leaf+3]),
                          (0, 3, [1, 2]),
@@ -189,13 +188,13 @@ def test_compute_bounds(cl_env, kernels, coord_dtype):
                        [-5.0, 0.0,-1.0]], dtype=coord_dtype)
     radii = np.ones(len(coords), dtype=coord_dtype)
     leaf = len(coords) - 1
-    nodes = np.array([(-1, 3, [leaf+0, 1]),
+    nodes = np.array([(NO_NODE, 3, [leaf+0, 1]),
                       ( 0, 3, [leaf+3, 2]),
                       ( 1, 2, [leaf+1, leaf+2]),
-                      ( 0, 0, [2, -1]),
-                      ( 2, 1, [0, -1]),
-                      ( 2, 2, [1, -1]),
-                      ( 1, 3, [3, -1])], dtype=Node)
+                      ( 0, 0, [2, NO_NODE]),
+                      ( 2, 1, [0, NO_NODE]),
+                      ( 2, 2, [1, NO_NODE]),
+                      ( 1, 3, [3, NO_NODE])], dtype=Node)
 
     coords_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY, len(coords) * 4 * coord_dtype.itemsize
@@ -392,7 +391,7 @@ def test_traverse(cl_env, kernels, coord_dtype):
         wait_for=[clear_flags, calc_bounds]
     )
     clear_collisions = cl.enqueue_fill_buffer(
-        cq, collisions_buf, np.array([-1], dtype='uint32'),
+        cq, collisions_buf, np.array(np.iinfo(np.uint32).max, dtype='uint32'),
         0, n_collisions * 2 * np.dtype('uint32').itemsize
     )
     clear_n_collisions = cl.enqueue_fill_buffer(
