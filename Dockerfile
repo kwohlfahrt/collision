@@ -29,10 +29,10 @@ mkdir collision
 touch collision/__init__.py
 EOF
 
-COPY setup.py MANIFEST.in ./
+COPY requirements.txt setup.py MANIFEST.in ./
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -e .[test]
+    pip install --no-deps -r requirements.txt && pip install --no-deps -e .[test]
 
 COPY collision ./collision
 COPY tests ./tests

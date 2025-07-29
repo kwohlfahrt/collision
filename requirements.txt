@@ -1,0 +1,15 @@
+iniconfig==2.1.0
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+numpy==2.3.2
+packaging==25.0
+platformdirs==4.3.8
+pluggy==1.6.0
+py-cpuinfo==9.0.0
+Pygments==2.19.2
+pyopencl==2025.2.6
+pytest==8.4.1
+pytest-benchmark==5.1.0
+pytools==2025.2.2
+siphash24==1.7
+typing_extensions==4.14.1
