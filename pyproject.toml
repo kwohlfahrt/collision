@@ -1,0 +1,27 @@
+[project]
+name = "Collision"
+version = "0.2.1"
+authors = [
+    {"name" = "Kai Wohlfahrt"}
+]
+dependencies = [
+    "pyopencl",
+    "jinja2",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-benchmark",
+]
+
+[project.urls]
+Repository = "https://github.com/kwohlfahrt/collision"
+
+[build-system]
+requires = ["setuptools >= 70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["collision"]
+

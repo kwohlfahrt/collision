@@ -16,7 +16,7 @@ mkdir collision
 touch collision/__init__.py
 EOF
 
-COPY requirements.txt setup.py MANIFEST.in ./
+COPY requirements.txt pyproject.toml MANIFEST.in ./
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-deps -r requirements.txt && pip install --no-deps -e .[test]
