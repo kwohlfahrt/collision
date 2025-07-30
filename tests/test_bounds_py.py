@@ -3,7 +3,6 @@ import pyopencl as cl
 import pytest
 from collision.bounds import *
 from collision.misc import dtype_sizeof
-from .common import cl_env
 
 def pytest_generate_tests(metafunc):
     if 'coord_dtype' in metafunc.fixturenames:

@@ -3,7 +3,6 @@ import pyopencl as cl
 from pathlib import Path
 import pytest
 from itertools import product as cartesian
-from .common import cl_env
 
 
 @pytest.fixture(scope='module')

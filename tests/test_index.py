@@ -4,7 +4,6 @@ import pytest
 
 from collision.index import *
 
-from .common import cl_env
 
 def pytest_generate_tests(metafunc):
     if 'index_dtype' in metafunc.fixturenames:

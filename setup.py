@@ -9,5 +9,8 @@ setup(name='Collision',
       url='https://github.com/kwohlfahrt/collision',
       packages=['collision'],
       install_requires=['pyopencl', 'jinja2'],
+      extras_require={
+            'test': ["pytest", "pytest-benchmark"],
+      },
       include_package_data=True,
 )

@@ -3,7 +3,6 @@ import pyopencl as cl
 import pytest
 from inspect import signature
 from collision.collision import *
-from .common import cl_env
 
 def pytest_generate_tests(metafunc):
     params = signature(metafunc.function).parameters
@@ -211,7 +210,7 @@ def test_random_collision_resized(cl_env, coord_dtype, collision_programs, old_s
 @pytest.mark.parametrize("size, ngroups, group_size", [(8, 1, 8)])
 def test_auto_program(cl_env, coord_dtype, size, ngroups, group_size):
     ctx, cq = cl_env
-    collider = Collider(ctx, size, ngroups, group_size)
+    collider = Collider(ctx, size, ngroups, group_size, coord_dtype)
 
     np.random.seed(4)
     coords = np.random.random((size, 3)).astype(coord_dtype)

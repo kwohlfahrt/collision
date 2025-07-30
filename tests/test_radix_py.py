@@ -3,7 +3,7 @@ import pyopencl as cl
 import pytest
 from inspect import signature
 from collision.radix import *
-from .common import cl_env
+
 from .test_scan_py import scan_program
 
 np.random.seed(4)

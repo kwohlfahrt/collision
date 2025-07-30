@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from inspect import signature
 from itertools import product as cartesian
-from .common import cl_env
+
 from collision.misc import dtype_decl
 
 np.random.seed(4)
@@ -110,7 +110,7 @@ def test_block_sort_random(cl_env, radix_kernels, key_dtype, ngroups, group_size
                 raise
             i += 1
 
-        expected = keys[grid[:-1] + [order]]
+        expected = keys[*grid[:-1], order]
         (keys_map, _) = cl.enqueue_map_buffer(
             cq, keys_buf, cl.map_flags.READ, 0,
             (ngroups, group_size * 2), keys.dtype, wait_for=[e], is_blocking=True
@@ -139,7 +139,7 @@ def test_scatter(cl_env, radix_kernels, key_dtype, ngroups, group_size):
         radix_keys = radix_key(keys, radix_bits, radix_pass).astype('uint16')
         order = np.argsort(radix_keys, kind='mergesort')
         grid = np.ogrid[tuple(slice(0, s) for s in keys.shape)]
-        block_keys = keys[grid[:-1] + [order]] # Partially sort
+        block_keys = keys[*grid[:-1], order] # Partially sort
 
         (keys_map, _) = cl.enqueue_map_buffer(
             cq, keys_buf, cl.map_flags.WRITE_INVALIDATE_REGION, 0,
