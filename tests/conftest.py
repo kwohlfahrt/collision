@@ -1,7 +1,8 @@
 import pytest
 import pyopencl as cl
 
-@pytest.fixture(scope='module')
+
+@pytest.fixture(scope="module")
 def cl_env():
     ctx = cl.create_some_context()
     try:
@@ -10,4 +11,3 @@ def cl_env():
     except cl.LogicError:
         cq = cl.CommandQueue(ctx)
     return ctx, cq
-

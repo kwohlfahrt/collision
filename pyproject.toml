@@ -10,10 +10,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-benchmark",
-]
+test = ["pytest", "pytest-benchmark"]
+lint = ["ruff"]
 
 [project.urls]
 Repository = "https://github.com/kwohlfahrt/collision"

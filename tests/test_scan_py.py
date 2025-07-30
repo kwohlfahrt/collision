@@ -6,7 +6,8 @@ from collision.radix import *
 
 np.random.seed(4)
 
-@pytest.fixture(scope='module')
+
+@pytest.fixture(scope="module")
 def scan_program(cl_env):
     ctx, cq = cl_env
     return PrefixScanProgram(ctx)
@@ -19,9 +20,12 @@ def test_scanner_errs(cl_env, scan_program, size, group_size):
         PrefixScanner(ctx, size, group_size, program=scan_program)
 
 
-@pytest.mark.parametrize("old_shape,new_shape", [
-    ((1024, 4), (1023, 4)),
-])
+@pytest.mark.parametrize(
+    "old_shape,new_shape",
+    [
+        ((1024, 4), (1023, 4)),
+    ],
+)
 def test_scanner_resize_errs(cl_env, scan_program, old_shape, new_shape):
     ctx, cq = cl_env
     scanner = PrefixScanner(ctx, *old_shape, program=scan_program)
@@ -29,26 +33,31 @@ def test_scanner_resize_errs(cl_env, scan_program, old_shape, new_shape):
         scanner.resize(*new_shape)
 
 
-@pytest.mark.parametrize("size,group_size,expected", [
-    (1024, 4, (128, 16, 2)),
-    (20, 2, (8, 2)),
-    (24, 4, (8,)),
-    (1032, 4, (136, 24, 4)),
-    (160, 4, (24, 4)),
-    (320, 4, (40, 8)),
-])
+@pytest.mark.parametrize(
+    "size,group_size,expected",
+    [
+        (1024, 4, (128, 16, 2)),
+        (20, 2, (8, 2)),
+        (24, 4, (8,)),
+        (1032, 4, (136, 24, 4)),
+        (160, 4, (24, 4)),
+        (320, 4, (40, 8)),
+    ],
+)
 def test_block_levels(cl_env, scan_program, size, group_size, expected):
     ctx, cq = cl_env
     scanner = PrefixScanner(ctx, size, group_size, program=scan_program)
     assert scanner.block_lengths == expected
 
 
-@pytest.mark.parametrize("size,group_size", [(20, 2), (24, 4), (1024, 4), (160, 4), (320, 4)])
+@pytest.mark.parametrize(
+    "size,group_size", [(20, 2), (24, 4), (1024, 4), (160, 4), (320, 4)]
+)
 def test_prefix_sum(cl_env, scan_program, size, group_size):
     ctx, cq = cl_env
     scanner = PrefixScanner(ctx, size, group_size, program=scan_program)
 
-    values = np.random.randint(0, size, size=size, dtype='uint32')
+    values = np.random.randint(0, size, size=size, dtype="uint32")
     values_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
     )
@@ -56,27 +65,35 @@ def test_prefix_sum(cl_env, scan_program, size, group_size):
 
     expected = np.cumsum(values)
     (values_map, _) = cl.enqueue_map_buffer(
-        cq, values_buf, cl.map_flags.READ,
-        0, values.shape, values.dtype,
-        wait_for=[calc_scan], is_blocking=True
+        cq,
+        values_buf,
+        cl.map_flags.READ,
+        0,
+        values.shape,
+        values.dtype,
+        wait_for=[calc_scan],
+        is_blocking=True,
     )
     assert values_map[0] == 0
     np.testing.assert_equal(values_map[1:], expected[:-1])
 
 
-@pytest.mark.parametrize("old_shape,new_shape", [
-    ((20, 2), (24, 4)),
-    ((1024, 4), (160, 4)),
-    ((24, 2), (None, 4)),
-    ((160, 4), (1024, None)),
-])
+@pytest.mark.parametrize(
+    "old_shape,new_shape",
+    [
+        ((20, 2), (24, 4)),
+        ((1024, 4), (160, 4)),
+        ((24, 2), (None, 4)),
+        ((160, 4), (1024, None)),
+    ],
+)
 def test_scanner_resized(cl_env, scan_program, old_shape, new_shape):
     ctx, cq = cl_env
     scanner = PrefixScanner(ctx, *old_shape, program=scan_program)
     scanner.resize(*new_shape)
 
     size = new_shape[0] or old_shape[0]
-    values = np.random.randint(0, 100, size=size, dtype='uint32')
+    values = np.random.randint(0, 100, size=size, dtype="uint32")
     values_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf=values
     )
@@ -84,9 +101,14 @@ def test_scanner_resized(cl_env, scan_program, old_shape, new_shape):
 
     expected = np.cumsum(values)
     (values_map, _) = cl.enqueue_map_buffer(
-        cq, values_buf, cl.map_flags.READ,
-        0, values.shape, values.dtype,
-        wait_for=[calc_scan], is_blocking=True
+        cq,
+        values_buf,
+        cl.map_flags.READ,
+        0,
+        values.shape,
+        values.dtype,
+        wait_for=[calc_scan],
+        is_blocking=True,
     )
     assert values_map[0] == 0
     np.testing.assert_equal(values_map[1:], expected[:-1])

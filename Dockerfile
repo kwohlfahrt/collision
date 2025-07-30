@@ -19,7 +19,7 @@ EOF
 COPY requirements.txt pyproject.toml MANIFEST.in ./
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-deps -r requirements.txt && pip install --no-deps -e .[test]
+    pip install --no-deps -r requirements.txt && pip install --no-deps -e .[test,lint]
 
 COPY collision ./collision
 COPY tests ./tests

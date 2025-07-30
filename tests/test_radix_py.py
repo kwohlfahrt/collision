@@ -8,31 +8,32 @@ from .test_scan_py import scan_program
 
 np.random.seed(4)
 
+
 def pytest_generate_tests(metafunc):
     params = signature(metafunc.function).parameters
-    if 'key_dtype' in params:
-        metafunc.parametrize("key_dtype", ['uint32', 'uint64'], scope='module')
-    elif 'key_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("key_dtype", ['uint32'], scope='module')
-    if 'value_dtype' in params:
+    if "key_dtype" in params:
+        metafunc.parametrize("key_dtype", ["uint32", "uint64"], scope="module")
+    elif "key_dtype" in metafunc.fixturenames:
+        metafunc.parametrize("key_dtype", ["uint32"], scope="module")
+    if "value_dtype" in params:
         metafunc.parametrize(
-            "value_dtype", map(np.dtype, [
-                'uint32', 'float64', ('float64', 3), ('float64', 4)
-            ]), scope='module'
+            "value_dtype",
+            map(np.dtype, ["uint32", "float64", ("float64", 3), ("float64", 4)]),
+            scope="module",
         )
-    elif 'value_dtype' in metafunc.fixturenames:
-        metafunc.parametrize("value_dtype", ['uint32'], scope='module')
+    elif "value_dtype" in metafunc.fixturenames:
+        metafunc.parametrize("value_dtype", ["uint32"], scope="module")
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def sort_program(cl_env, scan_program, key_dtype, value_dtype):
     ctx, cq = cl_env
     return RadixProgram(ctx, key_dtype, dtype(value_dtype))
 
 
-@pytest.mark.parametrize("size,group_size,bits", [
-    (128, 8, 3), (128, 9, 4), (122, 8, 4), (128, 4, 4)
-])
+@pytest.mark.parametrize(
+    "size,group_size,bits", [(128, 8, 3), (128, 9, 4), (122, 8, 4), (128, 4, 4)]
+)
 def test_sorter_errs(cl_env, sort_program, scan_program, size, group_size, bits):
     ctx, cq = cl_env
     with pytest.raises(ValueError):
@@ -45,13 +46,23 @@ def test_dtype_errs(cl_env, scan_program, sort_program):
     ctx, cq = cl_env
     with pytest.raises(ValueError):
         sorter = RadixSorter(
-            ctx, 128, 8, 4, key_dtype='uint16',
-            program=sort_program, scan_program=scan_program
+            ctx,
+            128,
+            8,
+            4,
+            key_dtype="uint16",
+            program=sort_program,
+            scan_program=scan_program,
         )
     with pytest.raises(ValueError):
         sorter = RadixSorter(
-            ctx, 128, 8, 4, value_dtype='uint16',
-            program=sort_program, scan_program=scan_program
+            ctx,
+            128,
+            8,
+            4,
+            value_dtype="uint16",
+            program=sort_program,
+            scan_program=scan_program,
         )
 
 
@@ -65,55 +76,76 @@ def test_sorter_resize_errs(cl_env, sort_program, scan_program, old_shape, new_s
         sorter.resize(*new_shape)
 
 
-@pytest.mark.parametrize("bits,group_size,expected", [
-    (1, 4, 32), (2, 4, 16), (4, 8, 8), (8, 128, 4)
-])
-def test_num_passes(cl_env, sort_program, scan_program, key_dtype,
-                    bits, group_size, expected):
+@pytest.mark.parametrize(
+    "bits,group_size,expected", [(1, 4, 32), (2, 4, 16), (4, 8, 8), (8, 128, 4)]
+)
+def test_num_passes(
+    cl_env, sort_program, scan_program, key_dtype, bits, group_size, expected
+):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, 512, group_size, bits, key_dtype,
-        program=sort_program, scan_program=scan_program
+        ctx,
+        512,
+        group_size,
+        bits,
+        key_dtype,
+        program=sort_program,
+        scan_program=scan_program,
     )
-    if key_dtype == np.dtype('uint64'):
+    if key_dtype == np.dtype("uint64"):
         expected *= 2
     assert sorter.num_passes == expected
 
 
-@pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32), (32, 16)])
+@pytest.mark.parametrize("size,group_size", [(32, 8), (15360, 32), (32, 16)])
 def test_sorter(cl_env, sort_program, scan_program, key_dtype, size, group_size):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, size, group_size, key_dtype=key_dtype,
-        program=sort_program, scan_program=scan_program
+        ctx,
+        size,
+        group_size,
+        key_dtype=key_dtype,
+        program=sort_program,
+        scan_program=scan_program,
     )
     data = np.random.randint(500, size=size, dtype=key_dtype)
     data_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=data
     )
-    out_buf = cl.Buffer(
-        ctx, cl.mem_flags.WRITE_ONLY , data.nbytes
-    )
+    out_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, data.nbytes)
 
     calc_sort = sorter.sort(cq, data_buf, out_buf)
 
     (out_map, _) = cl.enqueue_map_buffer(
-        cq, out_buf, cl.map_flags.READ,
-        0, data.shape, data.dtype,
-        wait_for=[calc_sort], is_blocking=True
+        cq,
+        out_buf,
+        cl.map_flags.READ,
+        0,
+        data.shape,
+        data.dtype,
+        wait_for=[calc_sort],
+        is_blocking=True,
     )
     np.testing.assert_equal(out_map, np.sort(data))
 
 
-@pytest.mark.parametrize("old_shape,new_shape", [
-    ((15360,32), (32,8)), ((32,8), (15360,32)),
-])
-def test_sorter_resized(cl_env, sort_program, scan_program, key_dtype,
-                        old_shape, new_shape):
+@pytest.mark.parametrize(
+    "old_shape,new_shape",
+    [
+        ((15360, 32), (32, 8)),
+        ((32, 8), (15360, 32)),
+    ],
+)
+def test_sorter_resized(
+    cl_env, sort_program, scan_program, key_dtype, old_shape, new_shape
+):
     ctx, cq = cl_env
     sorter = RadixSorter(
-        ctx, *old_shape, key_dtype=key_dtype,
-        program=sort_program, scan_program=scan_program
+        ctx,
+        *old_shape,
+        key_dtype=key_dtype,
+        program=sort_program,
+        scan_program=scan_program,
     )
     sorter.resize(*new_shape)
 
@@ -122,29 +154,38 @@ def test_sorter_resized(cl_env, sort_program, scan_program, key_dtype,
     data_buf = cl.Buffer(
         ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=data
     )
-    out_buf = cl.Buffer(
-        ctx, cl.mem_flags.WRITE_ONLY , data.nbytes
-    )
+    out_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, data.nbytes)
 
     calc_sort = sorter.sort(cq, data_buf, out_buf)
 
     (out_map, _) = cl.enqueue_map_buffer(
-        cq, out_buf, cl.map_flags.READ,
-        0, data.shape, data.dtype,
-        wait_for=[calc_sort], is_blocking=True
+        cq,
+        out_buf,
+        cl.map_flags.READ,
+        0,
+        data.shape,
+        data.dtype,
+        wait_for=[calc_sort],
+        is_blocking=True,
     )
     np.testing.assert_equal(out_map, np.sort(data))
 
 
-@pytest.mark.parametrize("size,group_size", [(32, 8), (15360,32)])
-def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
-                    size, group_size):
+@pytest.mark.parametrize("size,group_size", [(32, 8), (15360, 32)])
+def test_arg_sorter(
+    cl_env, sort_program, scan_program, key_dtype, value_dtype, size, group_size
+):
     ctx, cq = cl_env
     value_dtype = np.dtype(value_dtype)
 
     sorter = RadixSorter(
-        ctx, size, group_size, key_dtype=key_dtype, value_dtype=value_dtype,
-        program=sort_program, scan_program=scan_program
+        ctx,
+        size,
+        group_size,
+        key_dtype=key_dtype,
+        value_dtype=value_dtype,
+        program=sort_program,
+        scan_program=scan_program,
     )
     keys = np.random.randint(500, size=size, dtype=key_dtype)
     keys_buf = cl.Buffer(
@@ -160,12 +201,15 @@ def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
     else:
         values_bytes = values.nbytes
         values_shape = values.shape
-    values_buf = cl.Buffer(
-        ctx, cl.mem_flags.READ_ONLY, values_bytes
-    )
+    values_buf = cl.Buffer(ctx, cl.mem_flags.READ_ONLY, values_bytes)
     (values_map, _) = cl.enqueue_map_buffer(
-        cq, values_buf, cl.map_flags.WRITE_INVALIDATE_REGION,
-        0, values_shape, values.dtype, is_blocking=True
+        cq,
+        values_buf,
+        cl.map_flags.WRITE_INVALIDATE_REGION,
+        0,
+        values_shape,
+        values.dtype,
+        is_blocking=True,
     )
     if value_dtype.shape == (3,):
         values_map[:, :3] = values
@@ -173,32 +217,38 @@ def test_arg_sorter(cl_env, sort_program, scan_program, key_dtype, value_dtype,
         values_map[...] = values
     del values_map
 
-    out_keys_buf = cl.Buffer(
-        ctx, cl.mem_flags.WRITE_ONLY , keys.nbytes
-    )
-    out_values_buf = cl.Buffer(
-        ctx, cl.mem_flags.WRITE_ONLY , values_bytes
-    )
+    out_keys_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, keys.nbytes)
+    out_values_buf = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, values_bytes)
 
     calc_sort = sorter.sort(cq, keys_buf, out_keys_buf, values_buf, out_values_buf)
 
     (out_keys_map, _) = cl.enqueue_map_buffer(
-        cq, out_keys_buf, cl.map_flags.READ,
-        0, keys.shape, keys.dtype,
-        wait_for=[calc_sort], is_blocking=True
+        cq,
+        out_keys_buf,
+        cl.map_flags.READ,
+        0,
+        keys.shape,
+        keys.dtype,
+        wait_for=[calc_sort],
+        is_blocking=True,
     )
     np.testing.assert_equal(out_keys_map, np.sort(keys))
 
     (out_values_map, _) = cl.enqueue_map_buffer(
-        cq, out_values_buf, cl.map_flags.READ,
-        0, values_shape, values.dtype,
-        wait_for=[calc_sort], is_blocking=True
+        cq,
+        out_values_buf,
+        cl.map_flags.READ,
+        0,
+        values_shape,
+        values.dtype,
+        wait_for=[calc_sort],
+        is_blocking=True,
     )
     if value_dtype.shape == (3,):
         out_values = out_values_map[:, :3]
     else:
         out_values = out_values_map
-    np.testing.assert_equal(out_values, values[np.argsort(keys, kind='mergesort')])
+    np.testing.assert_equal(out_values, values[np.argsort(keys, kind="mergesort")])
 
 
 def test_auto_program(cl_env):
