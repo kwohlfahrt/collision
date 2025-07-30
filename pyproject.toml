@@ -7,6 +7,7 @@ authors = [
 dependencies = [
     "pyopencl",
     "jinja2",
+    "triton",
 ]
 
 [project.optional-dependencies]
